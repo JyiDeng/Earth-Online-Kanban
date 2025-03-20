@@ -1,3 +1,4 @@
+import csv
 import tkinter as tk
 from tkinter import font, messagebox
 import ttkbootstrap as ttk
@@ -17,6 +18,7 @@ import numpy as np
 from scipy.stats import linregress
 import requests
 import xml.etree.ElementTree as ET
+from PIL import Image, ImageTk
 
 # 重定向stdout到窗口显示和文件
 class StdoutRedirector:
@@ -53,7 +55,79 @@ class StdoutRedirector:
         if self.log_file:
             self.log_file.close()
 
-class AlertManager:
+class BackgroundMixin:
+    """背景图片混入类"""
+    def set_background(self, window):
+        try:
+            # 加载背景图片
+            image = Image.open("pic/bg.jpg")
+            # 获取窗口大小
+            window.update()
+            window_width = window.winfo_width()
+            window_height = window.winfo_height()
+            # 调整图片大小以适应窗口
+            image = image.resize((window_width, window_height), Image.Resampling.LANCZOS)
+            bg_image = ImageTk.PhotoImage(image)
+            
+            # 创建背景标签
+            bg_label = ttk.Label(window, image=bg_image)
+            bg_label.image = bg_image  # 保持引用
+            bg_label.place(x=0, y=0, relwidth=1, relheight=1)
+            
+            # 将背景标签放到最底层
+            bg_label.lower()
+            
+            # 设置所有框架的透明度
+            def set_frame_transparency(widget):
+                if isinstance(widget, (ttk.Frame, ttk.Labelframe)):
+                    widget.configure(style='Transparent.TFrame')
+                for child in widget.winfo_children():
+                    set_frame_transparency(child)
+            
+            # 创建透明样式
+            style = ttk.Style()
+            style.configure('Transparent.TFrame', background='#ffffff', opacity=0.85)
+            style.configure('Transparent.TLabelframe', background='#ffffff', opacity=0.85)
+            
+            # 应用透明样式到所有框架
+            set_frame_transparency(window)
+            
+            # 绑定窗口大小变化事件
+            def on_resize(event):
+                if event.widget == window:
+                    # 重新调整背景图片大小
+                    new_width = event.width
+                    new_height = event.height
+                    resized_image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                    new_bg_image = ImageTk.PhotoImage(resized_image)
+                    bg_label.configure(image=new_bg_image)
+                    bg_label.image = new_bg_image
+            
+            window.bind("<Configure>", on_resize)
+            
+        except Exception as e:
+            print(f"设置背景图片时出错: {e}")
+
+    def center_window(self, window, width=None, height=None):
+        """将窗口居中显示"""
+        # 如果没有指定宽高，获取当前窗口的宽高
+        if width is None or height is None:
+            window.update()
+            width = window.winfo_width()
+            height = window.winfo_height()
+        
+        # 获取屏幕宽高
+        screen_width = window.winfo_screenwidth()
+        screen_height = window.winfo_screenheight()
+        
+        # 计算居中位置
+        x = (screen_width - width) // 2
+        y = (screen_height - height) // 2
+        
+        # 设置窗口位置
+        window.geometry(f"{width}x{height}+{x}+{y}")
+
+class AlertManager(BackgroundMixin):
     def __init__(self):
         self.pending_alerts = []
         self.alert_window = None
@@ -68,7 +142,12 @@ class AlertManager:
             # 创建新的警告窗口
             self.alert_window = ttk.Toplevel()
             self.alert_window.title(title)
-            self.alert_window.geometry("400x300")
+            
+            # 设置背景图片
+            self.set_background(self.alert_window)
+            
+            # 居中显示窗口
+            self.center_window(self.alert_window, 400, 300)
             
             # 创建可滚动的文本框
             frame = ttk.Frame(self.alert_window, padding=10)
@@ -85,14 +164,20 @@ class AlertManager:
             
             # 确定按钮
             ttk.Button(frame, text="确定", command=self.alert_window.destroy).pack(pady=(0, 5))
+            
+            # 居中显示窗口
+            self.center_window(self.alert_window, 400, 300)
 
-class EarthOnlinePanel:
+class EarthOnlinePanel(BackgroundMixin):
     def __init__(self, root):
         # 确保outputs目录存在
         os.makedirs("outputs", exist_ok=True)
         os.makedirs("data", exist_ok=True)  # 确保data目录存在
         
         self.root = root
+        
+        # 设置背景图片
+        self.set_background(self.root)
         
         # 创建字体
         self.title_font = font.Font(family="Microsoft YaHei", size=14, weight="bold")
@@ -214,7 +299,7 @@ class EarthOnlinePanel:
         
         # 创建各个类别的列
         self.categories = {
-            "生理需求": ["饱腹", "口渴", "如厕", "肥胖指数", "心脏健康度"],
+            "生理需求": ["饱腹", "口渴", "如厕", "瘦身指数", "心脏健康度"],
             "社会需求": ["社交", "情绪", "成就感", "情商", "安全感"],
             "能力属性": ["肌肉强度", "敏捷", "抗击打能力", "魅力", "道德"]
         }
@@ -224,7 +309,7 @@ class EarthOnlinePanel:
             "饱腹": "🍔",
             "口渴": "💧",
             "如厕": "🚽",
-            "肥胖指数": "⚖️",
+            "瘦身指数": "⚖️",
             "心脏健康度": "🩷",
             "社交": "👥",
             "情绪": "😊",
@@ -382,12 +467,12 @@ class EarthOnlinePanel:
         self.player_name = "测试玩家"
         
         for attr in self.attributes:
-            if attr == "肥胖指数":
-                self.attributes[attr]["current_value"] = random.randint(30, 70)
-                self.attributes[attr]["change_rate"] = random.uniform(0.01, 0.02)  # 确保为正值
-            else:
-                self.attributes[attr]["current_value"] = random.randint(30, 70)
-                self.attributes[attr]["change_rate"] = random.uniform(-0.02, 0.02)
+            # if attr == "瘦身指数":
+            #     self.attributes[attr]["current_value"] = random.randint(30, 70)
+            #     self.attributes[attr]["change_rate"] = random.uniform(0.01, 0.02)  # 确保为正值
+            # else:
+            self.attributes[attr]["current_value"] = random.randint(30, 70)
+            self.attributes[attr]["change_rate"] = random.uniform(-0.02, 0.02)
     
     def save_data(self):
         """保存当前数据"""
@@ -421,7 +506,13 @@ class EarthOnlinePanel:
         """打开设置窗口"""
         setup_window = ttk.Toplevel(self.root)
         setup_window.title("设置")
-        setup_window.geometry("600x700")  # 增加窗口宽度
+        
+        # 设置背景图片
+        self.set_background(setup_window)
+        
+        # 居中显示窗口
+        self.center_window(setup_window, 600, 800)
+        
         setup_window.grab_set()
         
         # 创建设置界面
@@ -429,21 +520,35 @@ class EarthOnlinePanel:
         setup_frame.pack(fill=tk.BOTH, expand=True)
         
         # API设置
-        api_frame = ttk.Labelframe(setup_frame, text="SiliconFlow API设置", padding=10, bootstyle="info")
+        api_frame = ttk.Labelframe(setup_frame, text="API设置", padding=10, bootstyle="info")
         api_frame.pack(fill=tk.X, pady=(0, 15))
         
-        ttk.Label(api_frame, text="API Key:", font=self.text_font).pack(side=tk.LEFT, pady=5)
-        api_key_entry = ttk.Entry(api_frame, width=40, font=self.text_font)
-        api_key_entry.pack(side=tk.LEFT, padx=5, pady=5)
-        api_key_entry.insert(0, self.api_key)
+        # API来源选择
+        source_frame = ttk.Frame(api_frame)
+        source_frame.pack(fill=tk.X, pady=5)
+        ttk.Label(source_frame, text="API来源:", font=self.text_font).pack(side=tk.LEFT)
+        source_var = tk.StringVar(value="siliconflow")
+        sources = ["siliconflow", "huggingface"]
+        source_combobox = ttk.Combobox(source_frame, textvariable=source_var, values=sources, 
+                                      font=self.text_font, width=30, state="readonly")
+        source_combobox.pack(side=tk.LEFT, padx=5)
         
-        # 添加模型选择
+        # 模型选择
         model_frame = ttk.Frame(api_frame)
         model_frame.pack(fill=tk.X, pady=5)
         ttk.Label(model_frame, text="模型:", font=self.text_font).pack(side=tk.LEFT)
         model_var = tk.StringVar(value=self.api_model)
-        model_combobox = ttk.Combobox(model_frame, textvariable=model_var, values=self.available_models, font=self.text_font, width=30)
+        model_combobox = ttk.Combobox(model_frame, textvariable=model_var, values=self.available_models, 
+                                     font=self.text_font, width=30)
         model_combobox.pack(side=tk.LEFT, padx=5)
+        
+        # API Key输入
+        key_frame = ttk.Frame(api_frame)
+        key_frame.pack(fill=tk.X, pady=5)
+        ttk.Label(key_frame, text="API Key:", font=self.text_font).pack(side=tk.LEFT)
+        api_key_entry = ttk.Entry(key_frame, width=40, font=self.text_font)
+        api_key_entry.pack(side=tk.LEFT, padx=5)
+        api_key_entry.insert(0, self.api_key)
         
         # 原有的设置内容
         title_label = ttk.Label(setup_frame, text="玩家设置", font=('Microsoft YaHei', 16, 'bold'), bootstyle="info")
@@ -563,7 +668,6 @@ class EarthOnlinePanel:
             
             # 重新排序列，确保与训练数据一致
             input_data = input_data.reindex(columns=self.model.feature_names_in_, fill_value=0)
-            print(input_data)
             
             # 预测
             impact_value = self.model.predict(input_data)[0]
@@ -574,12 +678,46 @@ class EarthOnlinePanel:
             messagebox.showerror("预测错误", f"预测过程中出错: {e}")
             return 0
 
+    def record_event_data(self, event_name, attribute, impact_value):
+        """记录事件数据到CSV文件"""
+        try:
+            file_path = 'model/event_data.csv'
+            file_exists = os.path.exists(file_path)
+            
+            # 确保model目录存在
+            os.makedirs("model", exist_ok=True)
+            
+            # 如果文件不存在，创建新文件并写入表头
+            if not file_exists:
+                with open(file_path, 'w', newline='', encoding='utf-8') as f:
+                    writer = csv.writer(f)
+                    writer.writerow(['event_name', 'attribute', 'impact_value'])
+            
+            # 追加新数据
+            with open(file_path, 'a', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                writer.writerow([event_name, attribute, impact_value])
+            
+            print(f"事件数据已记录: {event_name}, {attribute}, {impact_value}")
+            
+            # 立即重新训练模型
+            self.train_and_save_model()
+            
+        except Exception as e:
+            print(f"记录事件数据时出错: {e}")
+
     def open_event_window(self):
         """打开事件输入窗口"""
         event_window = ttk.Toplevel(self.root)
         event_window.title("事件输入")
-        event_window.geometry("500x350")  # 增加窗口宽度
-        event_window.grab_set()  # 模态窗口
+        
+        # 设置背景图片
+        self.set_background(event_window)
+        
+        # 居中显示窗口
+        self.center_window(event_window, 500, 350)
+        
+        event_window.grab_set()
         
         # 创建事件输入界面
         event_frame = ttk.Frame(event_window, padding=15)
@@ -666,6 +804,8 @@ class EarthOnlinePanel:
                     self.attributes[attr]["current_value"] = max(0, min(100, self.attributes[attr]["current_value"]))
                     print(f"事件 '{event_name}' 已应用，{attr} 预测影响值: {impact_value:.2f}")
                     messagebox.showinfo("事件应用", f"事件 '{event_name}' 已应用，{attr} 变化: {impact_value:.2f}")
+                    self.record_event_data(event_name, attr, impact_value)
+                    
             except Exception as e:
                 print(f"应用事件时出错: {e}")
                 messagebox.showerror("应用事件错误", f"应用事件时出错: {e}")
@@ -747,7 +887,12 @@ class EarthOnlinePanel:
         """分析属性趋势并显示结果"""
         window = ttk.Toplevel(self.root)
         window.title("属性趋势分析")
-        window.geometry("1000x600")  # 增加窗口宽度
+        
+        # 设置背景图片
+        self.set_background(window)
+        
+        # 居中显示窗口
+        self.center_window(window, 1000, 600)
         
         main_frame = ttk.Frame(window, padding=10)
         main_frame.pack(fill=tk.BOTH, expand=True)
@@ -880,7 +1025,10 @@ class EarthOnlinePanel:
         # 创建等待提示窗口
         wait_window = tk.Toplevel(self.root)
         wait_window.title("请稍候")
-        wait_window.geometry("300x100")
+        
+        # 居中显示窗口
+        self.center_window(wait_window, 300, 100)
+        
         wait_window.transient(self.root)
         wait_window.grab_set()
         
@@ -925,7 +1073,13 @@ class EarthOnlinePanel:
         """设置阈值提醒"""
         threshold_window = ttk.Toplevel(self.root)
         threshold_window.title("阈值提醒设置")
-        threshold_window.geometry("500x600")
+        
+        # 设置背景图片
+        self.set_background(threshold_window)
+        
+        # 居中显示窗口
+        self.center_window(threshold_window, 500, 600)
+        
         threshold_window.grab_set()
         
         # 创建设置界面
@@ -1158,8 +1312,11 @@ class EarthOnlinePanel:
         # 检查阈值和预定时间
         self.check_thresholds()
         
+        # 更新时间显示
+        self.time_label.config(text=f"当前时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        
         # 安排下一次更新
-        self.root.after(self.update_interval * 1000, self.update_panel)
+        self.root.after(1000, self.update_panel)  # 每秒更新一次
     
     def update_trends(self):
         """更新所有属性的趋势分析"""
@@ -1343,11 +1500,17 @@ class EarthOnlinePanel:
             # 更新体重相关属性
             recent_weight = next((item["value"] for item in reversed(self.health_data["body_mass"])), None)
             if recent_weight:
-                # 根据体重计算BMI并更新肥胖指数
+                # 根据体重计算BMI并更新瘦身指数
                 height = 1.7  # 默认身高，可以从设置中读取
                 bmi = recent_weight / (height * height)
-                obesity_index = max(0, min(100, (bmi - 18.5) * 10))  # BMI 18.5-25 为正常范围
-                self.attributes["肥胖指数"]["current_value"] = obesity_index
+                # 瘦身指数计算逻辑：BMI越接近正常范围（18.5-24）分数越高
+                if bmi < 18.5:
+                    fitness_index = 100 - (18.5 - bmi) * 10
+                elif bmi > 24:
+                    fitness_index = 100 - (bmi - 24) * 10
+                else:
+                    fitness_index = 100
+                self.attributes["瘦身指数"]["current_value"] = max(0, min(100, fitness_index))
             
             # 更新运动消耗相关属性
             today_energy = sum(item["value"] for item in self.health_data["active_energy"]
@@ -1379,7 +1542,10 @@ class EarthOnlinePanel:
         # 创建等待窗口
         wait_window = tk.Toplevel(self.root)
         wait_window.title("请稍候")
-        wait_window.geometry("300x100")
+        
+        # 居中显示窗口
+        self.center_window(wait_window, 300, 100)
+        
         wait_window.transient(self.root)
         wait_window.grab_set()
         
