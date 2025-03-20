@@ -14,6 +14,7 @@ from sklearn.linear_model import LinearRegression
 import numpy as np
 from scipy.stats import linregress
 import requests
+import xml.etree.ElementTree as ET
 
 # 重定向stdout到窗口显示和文件
 class StdoutRedirector:
@@ -54,6 +55,7 @@ class EarthOnlinePanel:
     def __init__(self, root):
         # 确保outputs目录存在
         os.makedirs("outputs", exist_ok=True)
+        os.makedirs("data", exist_ok=True)  # 确保data目录存在
         
         self.root = root
         self.root.title("地球Online看板")
@@ -117,8 +119,8 @@ class EarthOnlinePanel:
         self.last_save_time = time.time()
         
         # 更新间隔设置（秒）
-        self.update_interval = 1
-        self.history_save_interval = 2  # 每5分钟保存历史数据
+        self.update_interval = 30
+        self.history_save_interval = 300  # 每5分钟保存历史数据
         
         # 初始化阈值设置
         self.thresholds = {}
@@ -136,6 +138,11 @@ class EarthOnlinePanel:
         self.threshold_alerts = {}  # 用于记录阈值提醒状态
         self.last_alert_time = {}  # 用于记录上次提醒时间
         
+        # 添加健康数据相关属性
+        self.health_data = {}
+        self.last_health_sync = None
+        self.health_sync_interval = 300  # 5分钟同步一次
+        
         # 创建UI元素
         self.create_ui()
         
@@ -145,11 +152,17 @@ class EarthOnlinePanel:
         # 加载历史数据
         self.load_history_data()
         
+        # 更新阈值提醒文本
+        self.update_threshold_text()
+        
         # 启动定时更新
         self.update_panel()
         
         # 加载模型（如果存在）
         self.load_model()
+        
+        # 在关闭窗口时保存数据
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
     
     def load_model(self):
         """加载已训练的模型"""
@@ -281,7 +294,7 @@ class EarthOnlinePanel:
         
         # AI分析窗口
         self.ai_frame = ttk.LabelFrame(self.analysis_frame, text="AI状态分析")
-        self.ai_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
+        self.ai_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 0))
         
         self.ai_text = tk.Text(self.ai_frame, height=8, width=40, wrap=tk.WORD, font=('Arial', 10))  # 增加高度
         self.ai_text.pack(fill=tk.BOTH, expand=True, pady=5, padx=5)
@@ -310,9 +323,6 @@ class EarthOnlinePanel:
         self.setup_button = ttk.Button(self.control_frame, text="设置", command=self.setup)
         self.setup_button.pack(side=tk.LEFT)
         
-        self.save_button = ttk.Button(self.control_frame, text="保存数据", command=self.save_data)
-        self.save_button.pack(side=tk.LEFT, padx=(10, 0))
-        
         self.reset_button = ttk.Button(self.control_frame, text="重置", command=self.reset_data)
         self.reset_button.pack(side=tk.RIGHT)
         
@@ -327,6 +337,10 @@ class EarthOnlinePanel:
         # 添加分析趋势按钮
         self.analyze_button = ttk.Button(self.control_frame, text="分析趋势", command=self.analyze_trends)
         self.analyze_button.pack(side=tk.LEFT, padx=(10, 0))
+        
+        # 添加健康数据同步按钮
+        self.sync_health_button = ttk.Button(self.control_frame, text="同步健康数据", command=self.sync_health_data)
+        self.sync_health_button.pack(side=tk.LEFT, padx=(10, 0))
         
         # 添加日志窗口
         self.log_frame = ttk.LabelFrame(self.main_frame, text="系统日志")
@@ -375,8 +389,12 @@ class EarthOnlinePanel:
         self.player_name = "测试玩家"
         
         for attr in self.attributes:
-            self.attributes[attr]["current_value"] = random.randint(30, 70)
-            self.attributes[attr]["change_rate"] = random.uniform(-0.02, 0.02)
+            if attr == "肥胖指数":
+                self.attributes[attr]["current_value"] = random.randint(30, 70)
+                self.attributes[attr]["change_rate"] = random.uniform(0.01, 0.02)  # 确保为正值
+            else:
+                self.attributes[attr]["current_value"] = random.randint(30, 70)
+                self.attributes[attr]["change_rate"] = random.uniform(-0.02, 0.02)
     
     def save_data(self):
         """保存当前数据"""
@@ -1042,11 +1060,20 @@ class EarthOnlinePanel:
                     self.scheduled_times[attr] = ""
             
             # 保存到文件
-            if self.config_manager.save_thresholds(self.thresholds, self.scheduled_times):
+            try:
+                data = {
+                    "thresholds": self.thresholds,
+                    "scheduled_times": self.scheduled_times
+                }
+                with open("data/thresholds.json", "w", encoding="utf-8") as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
+                    
+                # 更新阈值提醒文本框
+                self.update_threshold_text()
                 messagebox.showinfo("成功", "设置已保存")
                 threshold_window.destroy()
-            else:
-                messagebox.showerror("错误", "保存设置失败")
+            except Exception as e:
+                messagebox.showerror("错误", f"保存设置失败: {e}")
         
         save_button = ttk.Button(setup_frame, text="保存设置", command=save_settings)
         save_button.grid(row=2, column=0, columnspan=2, pady=(15, 0))
@@ -1266,18 +1293,158 @@ class EarthOnlinePanel:
             print(f"调用SiliconFlow API时出错: {e}")
             return None
 
+    def load_health_data(self):
+        """加载并解析Apple健康数据"""
+        try:
+            export_path = "WatchData/apple_health_export/export.xml"
+            if os.path.exists(export_path):
+                tree = ET.parse(export_path)
+                root = tree.getroot()
+                
+                # 初始化健康数据字典
+                self.health_data = {
+                    "steps": [],
+                    "distance": [],
+                    "heart_rate": [],
+                    "active_energy": [],
+                    "body_mass": []
+                }
+                
+                # 定义需要的数据类型
+                type_mapping = {
+                    "HKQuantityTypeIdentifierStepCount": "steps",
+                    "HKQuantityTypeIdentifierDistanceWalkingRunning": "distance",
+                    "HKQuantityTypeIdentifierHeartRate": "heart_rate",
+                    "HKQuantityTypeIdentifierActiveEnergyBurned": "active_energy",
+                    "HKQuantityTypeIdentifierBodyMass": "body_mass"
+                }
+                
+                # 解析数据
+                for record in root.findall(".//Record"):
+                    try:
+                        type = record.get("type")
+                        # 只处理我们需要的数据类型
+                        if type not in type_mapping:
+                            continue
+                            
+                        # 尝试转换值为浮点数
+                        try:
+                            value = float(record.get("value", 0))
+                        except (ValueError, TypeError):
+                            continue
+                            
+                        date = record.get("startDate")
+                        if not date:
+                            continue
+                            
+                        # 将数据添加到对应类型的列表中
+                        data_type = type_mapping[type]
+                        self.health_data[data_type].append({"date": date, "value": value})
+                        
+                    except Exception as e:
+                        print(f"跳过一条无效记录: {e}")
+                        continue
+                
+                print(f"健康数据加载成功，共处理：")
+                for data_type, data_list in self.health_data.items():
+                    print(f"- {data_type}: {len(data_list)}条记录")
+                    
+                self.update_attributes_from_health_data()
+            else:
+                print("未找到健康数据文件")
+        except Exception as e:
+            print(f"加载健康数据时出错: {e}")
+    
+    def update_attributes_from_health_data(self):
+        """根据健康数据更新属性值"""
+        try:
+            # 获取今天的数据
+            today = datetime.now().strftime("%Y-%m-%d")
+            
+            # 更新步数相关属性
+            today_steps = sum(item["value"] for item in self.health_data["steps"] 
+                            if item["date"].startswith(today))
+            if today_steps > 0:
+                # 根据步数更新敏捷属性
+                agility_value = min(100, today_steps / 100)  # 10000步对应100分
+                self.attributes["敏捷"]["current_value"] = agility_value
+            
+            # 更新心率相关属性
+            today_heart_rates = [item["value"] for item in self.health_data["heart_rate"]
+                               if item["date"].startswith(today)]
+            if today_heart_rates:
+                avg_heart_rate = sum(today_heart_rates) / len(today_heart_rates)
+                # 根据心率更新心脏健康度
+                heart_health = 100 - abs(75 - avg_heart_rate)  # 假设75是最佳心率
+                self.attributes["心脏健康度"]["current_value"] = max(0, min(100, heart_health))
+            
+            # 更新体重相关属性
+            recent_weight = next((item["value"] for item in reversed(self.health_data["body_mass"])), None)
+            if recent_weight:
+                # 根据体重计算BMI并更新肥胖指数
+                height = 1.7  # 默认身高，可以从设置中读取
+                bmi = recent_weight / (height * height)
+                obesity_index = max(0, min(100, (bmi - 18.5) * 10))  # BMI 18.5-25 为正常范围
+                self.attributes["肥胖指数"]["current_value"] = obesity_index
+            
+            # 更新运动消耗相关属性
+            today_energy = sum(item["value"] for item in self.health_data["active_energy"]
+                             if item["date"].startswith(today))
+            if today_energy > 0:
+                # 根据消耗的卡路里更新肌肉强度
+                strength_value = min(100, today_energy / 30)  # 3000卡路里对应100分
+                self.attributes["肌肉强度"]["current_value"] = strength_value
+            
+            print("属性值已根据健康数据更新")
+            
+        except Exception as e:
+            print(f"更新属性值时出错: {e}")
+
+    def on_closing(self):
+        """窗口关闭时的处理"""
+        try:
+            self.save_data()
+            print("应用关闭前数据已保存")
+        except Exception as e:
+            print(f"保存数据时出错: {e}")
+        
+        if hasattr(sys.stdout, 'close'):
+            sys.stdout.close()
+        self.root.destroy()
+
+    def sync_health_data(self):
+        """同步健康数据的处理函数"""
+        # 创建等待窗口
+        wait_window = tk.Toplevel(self.root)
+        wait_window.title("请稍候")
+        wait_window.geometry("300x100")
+        wait_window.transient(self.root)
+        wait_window.grab_set()
+        
+        # 添加等待消息
+        ttk.Label(wait_window, text="正在读取健康数据，文件较大，请耐心等待...", 
+                 font=self.text_font, wraplength=250).pack(pady=20)
+        
+        # 添加进度条
+        progress = ttk.Progressbar(wait_window, mode='indeterminate')
+        progress.pack(fill=tk.X, padx=20)
+        progress.start()
+        
+        # 更新UI
+        self.root.update()
+        
+        try:
+            # 加载健康数据
+            self.load_health_data()
+            messagebox.showinfo("成功", "健康数据同步完成")
+        except Exception as e:
+            messagebox.showerror("错误", f"同步健康数据时出错: {e}")
+        finally:
+            wait_window.destroy()
+
 def main():
     root = tk.Tk()
     app = EarthOnlinePanel(root)
-    
-    # 在窗口关闭时关闭日志文件
-    def on_closing():
-        if hasattr(sys.stdout, 'close'):
-            sys.stdout.close()
-        root.destroy()
-    
-    root.protocol("WM_DELETE_WINDOW", on_closing)
-    
     root.mainloop()
 
 if __name__ == "__main__":
