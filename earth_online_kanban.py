@@ -11,20 +11,43 @@ import pickle
 import sys
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
+import numpy as np
+from scipy.stats import linregress
 
-# 重定向stdout到窗口显示
+# 重定向stdout到窗口显示和文件
 class StdoutRedirector:
     def __init__(self, text_widget):
         self.text_widget = text_widget
         self.buffer = ""
+        
+        # 确保data目录存在
+        os.makedirs("data", exist_ok=True)
+        
+        # 创建或打开日志文件
+        self.log_file_path = os.path.join("data", "system_log.txt")
+        self.log_file = open(self.log_file_path, "a", encoding="utf-8")
+        
+        # 写入启动分隔符
+        start_message = f"\n{'-'*50}\n系统启动 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n{'-'*50}\n"
+        self.log_file.write(start_message)
+        self.log_file.flush()
 
     def write(self, string):
         self.buffer += string
         self.text_widget.insert(tk.END, string)
         self.text_widget.see(tk.END)
+        
+        # 同时写入日志文件
+        self.log_file.write(string)
+        self.log_file.flush()
 
     def flush(self):
-        pass
+        self.log_file.flush()
+        
+    def close(self):
+        """关闭日志文件"""
+        if self.log_file:
+            self.log_file.close()
 
 class EarthOnlinePanel:
     def __init__(self, root):
@@ -85,11 +108,22 @@ class EarthOnlinePanel:
         self.last_update_time = time.time()
         self.model = None
         
+        # 历史数据记录
+        self.history_data = {}
+        self.last_save_time = time.time()
+        
+        # 更新间隔设置（秒）
+        self.update_interval = 1
+        self.history_save_interval = 2  # 每5分钟保存历史数据
+        
         # 创建UI元素
         self.create_ui()
         
         # 加载模拟数据
         self.load_mock_data()
+        
+        # 加载历史数据
+        self.load_history_data()
         
         # 启动定时更新
         self.update_panel()
@@ -208,7 +242,8 @@ class EarthOnlinePanel:
                     "value_label": value_label,
                     "current_value": 0,
                     "max_value": 100,
-                    "change_rate": random.uniform(-0.01, 0.01)  # 随机变化率
+                    "change_rate": random.uniform(-0.01, 0.01),  # 随机变化率
+                    "trend": 0.0  # 趋势斜率
                 }
             
             # 设置列权重
@@ -245,6 +280,10 @@ class EarthOnlinePanel:
         self.train_button = ttk.Button(self.control_frame, text="训练模型", command=self.train_and_save_model)
         self.train_button.pack(side=tk.LEFT, padx=(10, 0))
         
+        # 添加分析趋势按钮
+        self.analyze_button = ttk.Button(self.control_frame, text="分析趋势", command=self.analyze_trends)
+        self.analyze_button.pack(side=tk.LEFT, padx=(10, 0))
+        
         # 添加日志窗口
         self.log_frame = ttk.LabelFrame(self.main_frame, text="系统日志")
         self.log_frame.pack(fill=tk.X, pady=(15, 0), after=separator)
@@ -270,8 +309,8 @@ class EarthOnlinePanel:
     def load_mock_data(self):
         """加载模拟数据或创建默认数据"""
         try:
-            if os.path.exists("player_data.json"):
-                with open("player_data.json", "r", encoding="utf-8") as f:
+            if os.path.exists("data/player_data.json"):
+                with open("data/player_data.json", "r", encoding="utf-8") as f:
                     data = json.load(f)
                     
                 self.player_name = data.get("player_name", "未命名玩家")
@@ -299,19 +338,21 @@ class EarthOnlinePanel:
         """保存当前数据"""
         data = {
             "player_name": self.player_name,
-            "attributes": {}
+            "attributes": {},
+            "last_update": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
         
         for attr, info in self.attributes.items():
             data["attributes"][attr] = {
                 "value": info["current_value"],
-                "change_rate": info["change_rate"]
+                "change_rate": info["change_rate"],
+                "trend": info.get("trend", 0.0)
             }
         
         try:
-            with open("player_data.json", "w", encoding="utf-8") as f:
+            with open("data/player_data.json", "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
-            print("数据已保存")
+            print(f"数据已保存 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         except Exception as e:
             print(f"保存数据出错: {e}")
     
@@ -600,6 +641,163 @@ class EarthOnlinePanel:
         ttk.Button(button_frame, text="应用事件", command=apply_event).pack(side=tk.LEFT, padx=(0, 5))
         ttk.Button(button_frame, text="取消", command=event_window.destroy).pack(side=tk.LEFT)
     
+    def load_history_data(self):
+        """加载历史数据"""
+        try:
+            if os.path.exists("data/history_data.json"):
+                with open("data/history_data.json", "r", encoding="utf-8") as f:
+                    self.history_data = json.load(f)
+                print(f"已加载历史数据记录，共{len(self.history_data.get('timestamps', []))}个时间点")
+            else:
+                # 初始化历史数据结构
+                self.history_data = {
+                    "timestamps": [],
+                    "attributes": {}
+                }
+                for attr in self.attributes:
+                    self.history_data["attributes"][attr] = []
+                print("创建新的历史数据记录")
+        except Exception as e:
+            print(f"加载历史数据出错: {e}")
+            # 初始化历史数据结构
+            self.history_data = {
+                "timestamps": [],
+                "attributes": {}
+            }
+            for attr in self.attributes:
+                self.history_data["attributes"][attr] = []
+    
+    def save_history_data(self):
+        """保存历史数据"""
+        # 添加当前时间戳
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.history_data["timestamps"].append(current_time)
+        
+        # 添加当前属性值
+        for attr, info in self.attributes.items():
+            if attr not in self.history_data["attributes"]:
+                self.history_data["attributes"][attr] = []
+            self.history_data["attributes"][attr].append(info["current_value"])
+        
+        # 保持历史记录不超过1000个点（防止文件过大）
+        max_history = 1000
+        if len(self.history_data["timestamps"]) > max_history:
+            self.history_data["timestamps"] = self.history_data["timestamps"][-max_history:]
+            for attr in self.history_data["attributes"]:
+                self.history_data["attributes"][attr] = self.history_data["attributes"][attr][-max_history:]
+        
+        try:
+            with open("data/history_data.json", "w", encoding="utf-8") as f:
+                json.dump(self.history_data, f, ensure_ascii=False, indent=2)
+            print(f"历史数据已保存 - {current_time}")
+        except Exception as e:
+            print(f"保存历史数据出错: {e}")
+    
+    def analyze_trends(self):
+        """分析属性变化趋势并预测"""
+        if len(self.history_data.get("timestamps", [])) < 5:
+            messagebox.showinfo("数据不足", "需要至少5个历史数据点才能分析趋势")
+            print("历史数据不足，无法分析趋势")
+            return
+        
+        # 创建分析窗口
+        trend_window = tk.Toplevel(self.root)
+        trend_window.title("属性趋势分析")
+        trend_window.geometry("600x500")
+        trend_window.grab_set()  # 模态窗口
+        
+        # 创建分析界面
+        trend_frame = ttk.Frame(trend_window, padding=15)
+        trend_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # 设置标题
+        title_label = ttk.Label(trend_frame, text="属性变化趋势分析", font=('Arial', 16, 'bold'), foreground=self.colors["highlight"])
+        title_label.grid(row=0, column=0, columnspan=3, sticky=tk.W, pady=(0, 15))
+        
+        # 创建表格标题
+        ttk.Label(trend_frame, text="属性", font=self.subtitle_font).grid(row=1, column=0, sticky=tk.W, pady=(0, 10))
+        ttk.Label(trend_frame, text="当前值", font=self.subtitle_font).grid(row=1, column=1, sticky=tk.W, pady=(0, 10))
+        ttk.Label(trend_frame, text="预测趋势", font=self.subtitle_font).grid(row=1, column=2, sticky=tk.W, pady=(0, 10))
+        
+        # 为每个属性计算趋势并显示
+        row = 2
+        sorted_attrs = sorted(self.attributes.keys())
+        
+        for attr in sorted_attrs:
+            if attr in self.history_data["attributes"] and len(self.history_data["attributes"][attr]) >= 5:
+                # 获取历史数据
+                values = self.history_data["attributes"][attr]
+                
+                # 使用简单线性回归分析趋势
+                x = np.arange(len(values))
+                try:
+                    slope, intercept, r_value, p_value, std_err = linregress(x, values)
+                    
+                    # 保存趋势斜率
+                    self.attributes[attr]["trend"] = slope
+                    
+                    # 显示属性信息
+                    icon = self.icons.get(attr, "")
+                    ttk.Label(trend_frame, text=f"{icon} {attr}", font=self.text_font).grid(row=row, column=0, sticky=tk.W, pady=2)
+                    
+                    # 当前值
+                    current_value = self.attributes[attr]["current_value"]
+                    value_text = f"{current_value:.1f}"
+                    ttk.Label(trend_frame, text=value_text, font=self.text_font).grid(row=row, column=1, sticky=tk.W, pady=2)
+                    
+                    # 趋势
+                    trend_text = ""
+                    if abs(slope) < 0.01:
+                        trend_text = "稳定"
+                        trend_color = self.colors["text"]
+                    elif slope > 0:
+                        trend_text = f"上升 (+{slope:.4f}/min)"
+                        trend_color = self.colors["good"]
+                    else:
+                        trend_text = f"下降 ({slope:.4f}/min)"
+                        trend_color = self.colors["danger"]
+                    
+                    trend_label = ttk.Label(trend_frame, text=trend_text, font=self.text_font, foreground=trend_color)
+                    trend_label.grid(row=row, column=2, sticky=tk.W, pady=2)
+                    
+                    row += 1
+                except Exception as e:
+                    print(f"分析 {attr} 趋势时出错: {e}")
+        
+        # 保存分析结果
+        self.save_data()
+        
+        # 预测未来值
+        ttk.Label(trend_frame, text=f"未来预测 ({len(self.history_data['timestamps'])}个历史点)", 
+                 font=self.subtitle_font, foreground=self.colors["highlight"]).grid(
+                     row=row, column=0, columnspan=3, sticky=tk.W, pady=(20, 10))
+        row += 1
+        
+        hours = [1, 6, 24]
+        for hour in hours:
+            ttk.Label(trend_frame, text=f"{hour}小时后:", font=self.text_font).grid(
+                row=row, column=0, sticky=tk.W, pady=(5, 0))
+            row += 1
+            
+            for attr in sorted_attrs[:5]:  # 只显示前5个属性的预测
+                if attr in self.attributes and "trend" in self.attributes[attr]:
+                    # 计算预测值
+                    current = self.attributes[attr]["current_value"]
+                    trend = self.attributes[attr]["trend"]
+                    
+                    # 斜率是每分钟变化率，转换为小时变化
+                    predicted = current + (trend * 60 * hour)
+                    predicted = max(0, min(100, predicted))
+                    
+                    icon = self.icons.get(attr, "")
+                    ttk.Label(trend_frame, text=f"  {icon} {attr}: {predicted:.1f}", 
+                             font=self.text_font).grid(row=row, column=0, columnspan=3, sticky=tk.W)
+                    row += 1
+        
+        # 关闭按钮
+        ttk.Button(trend_frame, text="关闭", command=trend_window.destroy).grid(
+            row=row, column=0, columnspan=3, pady=(20, 0))
+    
     def update_panel(self):
         """更新面板数据"""
         # 更新时间
@@ -632,12 +830,58 @@ class EarthOnlinePanel:
             # 根据值更新进度条样式
             info["progress_bar"].configure(style=self.get_progress_style(percentage))
         
-        # 安排下一次更新
-        self.root.after(1000, self.update_panel)
+        # 每隔一段时间保存历史数据
+        if now - self.last_save_time > self.history_save_interval:
+            self.save_history_data()
+            self.last_save_time = now
+            
+            # 自动分析趋势
+            self.update_trends()
+        
+        # 安排下一次更新 (降低刷新频率到60秒一次)
+        self.root.after(self.update_interval * 1000, self.update_panel)
+    
+    def update_trends(self):
+        """更新所有属性的趋势分析"""
+        if len(self.history_data.get("timestamps", [])) < 5:
+            return
+        
+        for attr in self.attributes:
+            if attr in self.history_data["attributes"] and len(self.history_data["attributes"][attr]) >= 5:
+                # 获取历史数据
+                values = self.history_data["attributes"][attr]
+                
+                # 使用简单线性回归分析趋势
+                x = np.arange(len(values))
+                try:
+                    slope, intercept, r_value, p_value, std_err = linregress(x, values)
+                    
+                    # 保存趋势斜率
+                    self.attributes[attr]["trend"] = slope
+                    
+                    # 根据趋势自动调整变化率
+                    # 如果趋势明显，微调变化率以使其更接近期望趋势
+                    if abs(slope) > 0.05 and random.random() < 0.3:  # 30%的概率进行自动调整
+                        # 轻微调整当前变化率
+                        adjustment = slope * 0.01
+                        self.attributes[attr]["change_rate"] += adjustment
+                        print(f"自动调整 {attr} 变化率: {self.attributes[attr]['change_rate']:.4f} (趋势: {slope:.4f})")
+                
+                except Exception as e:
+                    print(f"更新 {attr} 趋势时出错: {e}")
 
 def main():
     root = tk.Tk()
     app = EarthOnlinePanel(root)
+    
+    # 在窗口关闭时关闭日志文件
+    def on_closing():
+        if hasattr(sys.stdout, 'close'):
+            sys.stdout.close()
+        root.destroy()
+    
+    root.protocol("WM_DELETE_WINDOW", on_closing)
+    
     root.mainloop()
 
 if __name__ == "__main__":
