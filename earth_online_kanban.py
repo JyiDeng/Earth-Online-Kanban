@@ -1,5 +1,7 @@
 import tkinter as tk
-from tkinter import ttk, font, messagebox
+from tkinter import font, messagebox
+import ttkbootstrap as ttk
+from ttkbootstrap.constants import *
 import json
 import time
 import math
@@ -51,6 +53,39 @@ class StdoutRedirector:
         if self.log_file:
             self.log_file.close()
 
+class AlertManager:
+    def __init__(self):
+        self.pending_alerts = []
+        self.alert_window = None
+        self.alert_text = None
+    
+    def show_alert(self, title, message):
+        if self.alert_window and self.alert_window.winfo_exists():
+            # 如果已有警告窗口，则追加消息
+            self.alert_text.insert(tk.END, "\n\n" + message)
+            self.alert_window.lift()  # 将窗口提到前面
+        else:
+            # 创建新的警告窗口
+            self.alert_window = ttk.Toplevel()
+            self.alert_window.title(title)
+            self.alert_window.geometry("400x300")
+            
+            # 创建可滚动的文本框
+            frame = ttk.Frame(self.alert_window, padding=10)
+            frame.pack(fill=tk.BOTH, expand=True)
+            
+            self.alert_text = tk.Text(frame, wrap=tk.WORD, font=('Microsoft YaHei', 10))
+            self.alert_text.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+            self.alert_text.insert(tk.END, message)
+            
+            # 添加滚动条
+            scrollbar = ttk.Scrollbar(frame, orient="vertical", command=self.alert_text.yview)
+            scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+            self.alert_text.configure(yscrollcommand=scrollbar.set)
+            
+            # 确定按钮
+            ttk.Button(frame, text="确定", command=self.alert_window.destroy).pack(pady=(0, 5))
+
 class EarthOnlinePanel:
     def __init__(self, root):
         # 确保outputs目录存在
@@ -58,56 +93,11 @@ class EarthOnlinePanel:
         os.makedirs("data", exist_ok=True)  # 确保data目录存在
         
         self.root = root
-        self.root.title("地球Online看板")
-        self.root.geometry("1000x800")
-        
-        # 设置应用程序图标和主题
-        self.root.minsize(800, 700)
-        
-        # 应用主题风格
-        self.style = ttk.Style()
-        self.style.theme_use('clam')
-        
-        # 定义颜色方案
-        self.colors = {
-            "bg": "#f0f0f0",
-            "highlight": "#3498db",
-            "text": "#2c3e50",
-            "good": "#2ecc71",
-            "warning": "#f39c12",
-            "danger": "#e74c3c",
-            "panel_bg": "#ffffff",
-            "button": "#3498db",
-            "button_text": "#ffffff",
-        }
-        
-        # 应用颜色样式
-        self.style.configure('TFrame', background=self.colors["bg"])
-        self.style.configure('TLabelframe', background=self.colors["bg"], foreground=self.colors["text"])
-        self.style.configure('TLabelframe.Label', background=self.colors["bg"], foreground=self.colors["text"], font=('Arial', 11, 'bold'))
-        self.style.configure('TLabel', background=self.colors["bg"], foreground=self.colors["text"])
-        
-        # 自定义按钮样式
-        self.style.configure('TButton', background=self.colors["button"], foreground=self.colors["button_text"], font=('Arial', 10))
-        self.style.map('TButton', 
-                       background=[('active', '#2980b9'), ('pressed', '#1f618d')],
-                       foreground=[('active', '#ffffff'), ('pressed', '#ffffff')])
-        
-        # 自定义进度条样式
-        self.style.configure("health.Horizontal.TProgressbar", troughcolor=self.colors["bg"], 
-                            background=self.colors["good"], borderwidth=0, thickness=20)
-        self.style.configure("warning.Horizontal.TProgressbar", troughcolor=self.colors["bg"], 
-                            background=self.colors["warning"], borderwidth=0, thickness=20)
-        self.style.configure("danger.Horizontal.TProgressbar", troughcolor=self.colors["bg"], 
-                            background=self.colors["danger"], borderwidth=0, thickness=20)
         
         # 创建字体
-        self.title_font = font.Font(family="Arial", size=14, weight="bold")
-        self.subtitle_font = font.Font(family="Arial", size=12, weight="bold")
-        self.text_font = font.Font(family="Arial", size=10)
-        
-        # 设置背景色
-        self.root.configure(background=self.colors["bg"])
+        self.title_font = font.Font(family="Microsoft YaHei", size=14, weight="bold")
+        self.subtitle_font = font.Font(family="Microsoft YaHei", size=12, weight="bold")
+        self.text_font = font.Font(family="Microsoft YaHei", size=10)
         
         # 初始化数据
         self.attributes = {}
@@ -142,6 +132,9 @@ class EarthOnlinePanel:
         self.health_data = {}
         self.last_health_sync = None
         self.health_sync_interval = 300  # 5分钟同步一次
+        
+        # 添加警告管理器
+        self.alert_manager = AlertManager()
         
         # 创建UI元素
         self.create_ui()
@@ -190,11 +183,11 @@ class EarthOnlinePanel:
     def get_progress_style(self, value):
         """根据值返回对应的样式"""
         if value > 70:
-            return "health.Horizontal.TProgressbar"
+            return "success-striped"
         elif value > 30:
-            return "warning.Horizontal.TProgressbar"
+            return "warning-striped"
         else:
-            return "danger.Horizontal.TProgressbar"
+            return "danger-striped"
     
     def create_ui(self):
         # 创建主框架
@@ -206,7 +199,7 @@ class EarthOnlinePanel:
         self.top_frame.pack(fill=tk.X, pady=(0, 15))
         
         # 标题
-        title_label = ttk.Label(self.top_frame, text="地球 Online", font=('Arial', 18, 'bold'), foreground=self.colors["highlight"])
+        title_label = ttk.Label(self.top_frame, text="地球 Online", font=('Microsoft YaHei', 18, 'bold'), bootstyle="info")
         title_label.pack(side=tk.LEFT)
         
         self.time_label = ttk.Label(self.top_frame, text="当前时间: ", font=self.text_font)
@@ -249,7 +242,7 @@ class EarthOnlinePanel:
         column_index = 0
         for category, attrs in self.categories.items():
             # 创建类别框架
-            category_frame = ttk.LabelFrame(self.categories_frame, text=category, padding=15)
+            category_frame = ttk.Labelframe(self.categories_frame, text=category, padding=15, bootstyle="default")
             category_frame.grid(row=0, column=column_index, padx=8, pady=5, sticky="nsew")
             
             # 为每个属性创建进度条和标签
@@ -262,7 +255,7 @@ class EarthOnlinePanel:
                 progress_frame.grid(row=i, column=1, sticky=tk.EW, pady=6, padx=(10, 0))
                 
                 # 创建进度条
-                progress_bar = ttk.Progressbar(progress_frame, length=100, mode="determinate", style="health.Horizontal.TProgressbar")
+                progress_bar = ttk.Progressbar(progress_frame, length=100, mode="determinate", bootstyle="success-striped")
                 progress_bar.pack(side=tk.LEFT, fill=tk.X, expand=True)
                 
                 # 创建数值标签
@@ -290,26 +283,26 @@ class EarthOnlinePanel:
         
         # 创建AI分析和阈值提醒窗口
         self.analysis_frame = ttk.Frame(self.main_frame)
-        self.analysis_frame.pack(fill=tk.X, pady=(0, 0))  # 增加与上方内容的间距
+        self.analysis_frame.pack(fill=tk.X, pady=(0, 0))
         
         # AI分析窗口
-        self.ai_frame = ttk.LabelFrame(self.analysis_frame, text="AI状态分析")
+        self.ai_frame = ttk.Labelframe(self.analysis_frame, text="AI状态分析", bootstyle="info")
         self.ai_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 0))
         
-        self.ai_text = tk.Text(self.ai_frame, height=8, width=40, wrap=tk.WORD, font=('Arial', 10))  # 增加高度
+        self.ai_text = tk.Text(self.ai_frame, height=8, width=40, wrap=tk.WORD, font=('Microsoft YaHei', 10))
         self.ai_text.pack(fill=tk.BOTH, expand=True, pady=5, padx=5)
         
-        self.analyze_ai_button = ttk.Button(self.ai_frame, text="AI分析当前状态", command=self.analyze_with_ai)
+        self.analyze_ai_button = ttk.Button(self.ai_frame, text="AI分析当前状态", command=self.analyze_with_ai, bootstyle="info-outline")
         self.analyze_ai_button.pack(pady=(0, 5))
         
         # 阈值提醒窗口
-        self.threshold_frame = ttk.LabelFrame(self.analysis_frame, text="阈值提醒设置")
+        self.threshold_frame = ttk.Labelframe(self.analysis_frame, text="阈值提醒设置", bootstyle="info")
         self.threshold_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(5, 0))
         
-        self.threshold_text = tk.Text(self.threshold_frame, height=8, width=40, wrap=tk.WORD, font=('Arial', 10))  # 增加高度
+        self.threshold_text = tk.Text(self.threshold_frame, height=8, width=40, wrap=tk.WORD, font=('Microsoft YaHei', 10))
         self.threshold_text.pack(fill=tk.BOTH, expand=True, pady=5, padx=5)
         
-        self.threshold_button = ttk.Button(self.threshold_frame, text="设置阈值提醒", command=self.setup_thresholds)
+        self.threshold_button = ttk.Button(self.threshold_frame, text="设置阈值提醒", command=self.setup_thresholds, bootstyle="info-outline")
         self.threshold_button.pack(pady=(0, 5))
         
         # 创建底部控制栏
@@ -320,33 +313,33 @@ class EarthOnlinePanel:
         separator = ttk.Separator(self.main_frame, orient='horizontal')
         separator.pack(fill=tk.X, pady=(0, 15))
         
-        self.setup_button = ttk.Button(self.control_frame, text="设置", command=self.setup)
+        self.setup_button = ttk.Button(self.control_frame, text="设置", command=self.setup, bootstyle="primary")
         self.setup_button.pack(side=tk.LEFT)
         
-        self.reset_button = ttk.Button(self.control_frame, text="重置", command=self.reset_data)
+        self.reset_button = ttk.Button(self.control_frame, text="重置(下次打开生效)", command=self.reset_data, bootstyle="danger")
         self.reset_button.pack(side=tk.RIGHT)
         
         # 添加事件按钮
-        self.event_button = ttk.Button(self.control_frame, text="事件", command=self.open_event_window)
+        self.event_button = ttk.Button(self.control_frame, text="事件", command=self.open_event_window, bootstyle="success")
         self.event_button.pack(side=tk.LEFT, padx=(10, 0))
         
         # 添加训练模型按钮
-        self.train_button = ttk.Button(self.control_frame, text="训练模型(事件对应属性增减)", command=self.train_and_save_model)
+        self.train_button = ttk.Button(self.control_frame, text="训练模型(事件对应属性增减)", command=self.train_and_save_model, bootstyle="info")
         self.train_button.pack(side=tk.LEFT, padx=(10, 0))
         
         # 添加分析趋势按钮
-        self.analyze_button = ttk.Button(self.control_frame, text="分析趋势", command=self.analyze_trends)
+        self.analyze_button = ttk.Button(self.control_frame, text="分析趋势", command=self.analyze_trends, bootstyle="warning")
         self.analyze_button.pack(side=tk.LEFT, padx=(10, 0))
         
         # 添加健康数据同步按钮
-        self.sync_health_button = ttk.Button(self.control_frame, text="同步健康数据", command=self.sync_health_data)
+        self.sync_health_button = ttk.Button(self.control_frame, text="同步健康数据", command=self.sync_health_data, bootstyle="secondary")
         self.sync_health_button.pack(side=tk.LEFT, padx=(10, 0))
         
         # 添加日志窗口
-        self.log_frame = ttk.LabelFrame(self.main_frame, text="系统日志")
+        self.log_frame = ttk.Labelframe(self.main_frame, text="系统日志", bootstyle="default")
         self.log_frame.pack(fill=tk.X, pady=(15, 0), after=separator)
         
-        self.log_text = tk.Text(self.log_frame, height=5, width=50, wrap=tk.WORD, font=('Courier', 9))
+        self.log_text = tk.Text(self.log_frame, height=5, width=50, wrap=tk.WORD, font=('Microsoft YaHei', 9))
         self.log_text.pack(fill=tk.X, expand=True, pady=5, padx=5)
         
         # 重定向标准输出到日志窗口
@@ -426,9 +419,9 @@ class EarthOnlinePanel:
     
     def setup(self):
         """打开设置窗口"""
-        setup_window = tk.Toplevel(self.root)
+        setup_window = ttk.Toplevel(self.root)
         setup_window.title("设置")
-        setup_window.geometry("450x650")
+        setup_window.geometry("600x700")  # 增加窗口宽度
         setup_window.grab_set()
         
         # 创建设置界面
@@ -436,108 +429,81 @@ class EarthOnlinePanel:
         setup_frame.pack(fill=tk.BOTH, expand=True)
         
         # API设置
-        api_frame = ttk.LabelFrame(setup_frame, text="SiliconFlow API设置", padding=10)
-        api_frame.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 15))
+        api_frame = ttk.Labelframe(setup_frame, text="SiliconFlow API设置", padding=10, bootstyle="info")
+        api_frame.pack(fill=tk.X, pady=(0, 15))
         
-        ttk.Label(api_frame, text="API Key:", font=self.text_font).grid(row=0, column=0, sticky=tk.W, pady=5)
+        ttk.Label(api_frame, text="API Key:", font=self.text_font).pack(side=tk.LEFT, pady=5)
         api_key_entry = ttk.Entry(api_frame, width=40, font=self.text_font)
-        api_key_entry.grid(row=0, column=1, padx=5, pady=5)
+        api_key_entry.pack(side=tk.LEFT, padx=5, pady=5)
         api_key_entry.insert(0, self.api_key)
         
         # 添加模型选择
-        ttk.Label(api_frame, text="模型:", font=self.text_font).grid(row=1, column=0, sticky=tk.W, pady=5)
+        model_frame = ttk.Frame(api_frame)
+        model_frame.pack(fill=tk.X, pady=5)
+        ttk.Label(model_frame, text="模型:", font=self.text_font).pack(side=tk.LEFT)
         model_var = tk.StringVar(value=self.api_model)
-        model_combobox = ttk.Combobox(api_frame, textvariable=model_var, values=self.available_models, font=self.text_font, width=30)
-        model_combobox.grid(row=1, column=1, padx=5, pady=5, sticky=tk.W)
+        model_combobox = ttk.Combobox(model_frame, textvariable=model_var, values=self.available_models, font=self.text_font, width=30)
+        model_combobox.pack(side=tk.LEFT, padx=5)
         
         # 原有的设置内容
-        title_label = ttk.Label(setup_frame, text="玩家设置", font=('Arial', 16, 'bold'), foreground=self.colors["highlight"])
-        title_label.grid(row=2, column=0, columnspan=2, sticky=tk.W, pady=(0, 15))
+        title_label = ttk.Label(setup_frame, text="玩家设置", font=('Microsoft YaHei', 16, 'bold'), bootstyle="info")
+        title_label.pack(fill=tk.X, pady=(0, 15))
         
         # 玩家名称设置
-        ttk.Label(setup_frame, text="玩家名称:", font=self.subtitle_font).grid(row=3, column=0, sticky=tk.W, pady=(0, 10))
-        name_entry = ttk.Entry(setup_frame, width=30, font=self.text_font)
-        name_entry.grid(row=3, column=1, sticky=tk.W, pady=(0, 10))
+        name_frame = ttk.Frame(setup_frame)
+        name_frame.pack(fill=tk.X, pady=(0, 10))
+        ttk.Label(name_frame, text="玩家名称:", font=self.subtitle_font).pack(side=tk.LEFT)
+        name_entry = ttk.Entry(name_frame, width=30, font=self.text_font)
+        name_entry.pack(side=tk.LEFT, padx=5)
         name_entry.insert(0, self.player_name)
         
         # 添加分隔线
-        separator = ttk.Separator(setup_frame, orient='horizontal')
-        separator.grid(row=4, column=0, columnspan=2, sticky="ew", pady=10)
+        ttk.Separator(setup_frame, orient='horizontal').pack(fill=tk.X, pady=10)
         
         # 属性设置
-        ttk.Label(setup_frame, text="属性设置:", font=self.subtitle_font).grid(row=5, column=0, columnspan=2, sticky=tk.W, pady=(5, 10))
+        ttk.Label(setup_frame, text="属性设置:", font=self.subtitle_font).pack(anchor=tk.W, pady=(5, 10))
         
         # 创建滚动框架
-        canvas = tk.Canvas(setup_frame, background=self.colors["bg"], highlightthickness=0)
-        scrollbar = ttk.Scrollbar(setup_frame, orient="vertical", command=canvas.yview)
+        scroll_frame = ttk.Frame(setup_frame)
+        scroll_frame.pack(fill=tk.BOTH, expand=True)
+        
+        canvas = tk.Canvas(scroll_frame, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(scroll_frame, orient="vertical", command=canvas.yview)
         scrollable_frame = ttk.Frame(canvas)
         
         scrollable_frame.bind(
             "<Configure>",
-            lambda e: canvas.configure(
-                scrollregion=canvas.bbox("all")
-            )
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
         )
         
         canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
         canvas.configure(yscrollcommand=scrollbar.set)
         
-        canvas.grid(row=6, column=0, columnspan=2, sticky="nsew")
-        scrollbar.grid(row=6, column=2, sticky="ns")
-        setup_frame.grid_rowconfigure(6, weight=1)
-        setup_frame.grid_columnconfigure(0, weight=0)
-        setup_frame.grid_columnconfigure(1, weight=1)
-        
-        # 为每个属性创建滑块
-        row = 0
-        attr_entries = {}
-        rate_entries = {}
-        
-        # 按类别组织设置项
+        # 添加属性设置
         for category, attrs in self.categories.items():
             # 添加类别标题
-            category_label = ttk.Label(scrollable_frame, text=category, font=self.subtitle_font, foreground=self.colors["highlight"])
-            category_label.grid(row=row, column=0, columnspan=2, sticky=tk.W, pady=(10, 5))
-            row += 1
+            ttk.Label(scrollable_frame, text=category, font=self.subtitle_font, bootstyle="info").pack(
+                anchor=tk.W, pady=(10, 5))
             
             for attr in attrs:
-                icon = self.icons.get(attr, "")
-                ttk.Label(scrollable_frame, text=f"{icon} {attr}", font=self.text_font).grid(row=row, column=0, sticky=tk.W, pady=2)
-                
-                # 创建属性值输入框
                 attr_frame = ttk.Frame(scrollable_frame)
-                attr_frame.grid(row=row, column=1, sticky=tk.EW, pady=2)
+                attr_frame.pack(fill=tk.X, pady=2)
                 
-                # 当前值滑块
-                info = self.attributes[attr]
-                value_var = tk.DoubleVar(value=info["current_value"])
-                slider = ttk.Scale(attr_frame, from_=0, to=100, variable=value_var, orient=tk.HORIZONTAL)
-                slider.pack(side=tk.LEFT, fill=tk.X, expand=True)
+                icon = self.icons.get(attr, "")
+                ttk.Label(attr_frame, text=f"{icon} {attr}", font=self.text_font).pack(side=tk.LEFT)
                 
-                # 当前值输入框
-                value_entry = ttk.Entry(attr_frame, width=5, textvariable=value_var)
-                value_entry.pack(side=tk.RIGHT, padx=(5, 0))
-                
-                attr_entries[attr] = value_var
-                
-                # 变化率
-                row += 1
-                ttk.Label(scrollable_frame, text=f"{attr}变化率", font=self.text_font).grid(row=row, column=0, sticky=tk.W, pady=2, padx=(20, 0))
-                
-                rate_var = tk.DoubleVar(value=info["change_rate"])
-                rate_entry = ttk.Entry(scrollable_frame, width=10, textvariable=rate_var)
-                rate_entry.grid(row=row, column=1, sticky=tk.W, pady=2)
-                
-                rate_entries[attr] = rate_var
-                
-                row += 1
+                # 变化率设置
+                ttk.Label(attr_frame, text="变化率:", font=self.text_font).pack(side=tk.LEFT, padx=(10, 0))
+                rate_entry = ttk.Entry(attr_frame, width=8)
+                rate_entry.pack(side=tk.LEFT, padx=5)
+                rate_entry.insert(0, f"{self.attributes[attr]['change_rate']:.4f}")
         
-        # 添加分隔线
-        separator2 = ttk.Separator(setup_frame, orient='horizontal')
-        separator2.grid(row=7, column=0, columnspan=2, sticky="ew", pady=10)
+        # 布局滚动框架
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
-        # 确认按钮
-        def apply_settings():
+        # 保存按钮
+        def save_settings():
             # 保存API设置
             self.api_key = api_key_entry.get().strip()
             self.api_model = model_var.get()
@@ -547,22 +513,6 @@ class EarthOnlinePanel:
             self.player_name = name_entry.get()
             self.name_label.config(text=f"玩家名称: {self.player_name}")
             
-            # 更新属性值
-            for attr, var in attr_entries.items():
-                try:
-                    value = float(var.get())
-                    self.attributes[attr]["current_value"] = max(0, min(100, value))
-                except ValueError:
-                    pass
-            
-            # 更新变化率
-            for attr, var in rate_entries.items():
-                try:
-                    rate = float(var.get())
-                    self.attributes[attr]["change_rate"] = rate
-                except ValueError:
-                    pass
-            
             # 保存数据
             self.save_data()
             
@@ -570,10 +520,10 @@ class EarthOnlinePanel:
             setup_window.destroy()
         
         button_frame = ttk.Frame(setup_frame)
-        button_frame.grid(row=8, column=0, columnspan=2, pady=(10, 0))
+        button_frame.pack(fill=tk.X, pady=(10, 0))
         
-        ttk.Button(button_frame, text="确认", command=apply_settings).pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Button(button_frame, text="取消", command=setup_window.destroy).pack(side=tk.LEFT)
+        ttk.Button(button_frame, text="确认", command=save_settings, bootstyle="success").pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(button_frame, text="取消", command=setup_window.destroy, bootstyle="danger").pack(side=tk.LEFT)
     
     def train_model(self):
         """训练机器学习模型以预测事件影响值"""
@@ -626,9 +576,9 @@ class EarthOnlinePanel:
 
     def open_event_window(self):
         """打开事件输入窗口"""
-        event_window = tk.Toplevel(self.root)
+        event_window = ttk.Toplevel(self.root)
         event_window.title("事件输入")
-        event_window.geometry("400x350")
+        event_window.geometry("500x350")  # 增加窗口宽度
         event_window.grab_set()  # 模态窗口
         
         # 创建事件输入界面
@@ -691,7 +641,12 @@ class EarthOnlinePanel:
             impact_value = self.predict_impact(event_name, attr)
             impact_label.config(text=f"{impact_value:.2f}")
         
-        ttk.Button(event_frame, text="预测影响", command=predict_event_impact).grid(row=4, column=0, pady=(10, 0))
+        # 创建按钮框架
+        button_frame = ttk.Frame(event_frame)
+        button_frame.grid(row=4, column=0, columnspan=2, pady=(20, 0))
+        
+        # 预测按钮
+        ttk.Button(button_frame, text="预测影响", command=predict_event_impact, bootstyle="info-outline").pack(side=tk.LEFT, padx=5)
         
         # 确认按钮
         def apply_event():
@@ -717,11 +672,8 @@ class EarthOnlinePanel:
             
             event_window.destroy()
         
-        button_frame = ttk.Frame(event_frame)
-        button_frame.grid(row=5, column=0, columnspan=2, pady=(20, 0))
-        
-        ttk.Button(button_frame, text="应用事件", command=apply_event).pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Button(button_frame, text="取消", command=event_window.destroy).pack(side=tk.LEFT)
+        ttk.Button(button_frame, text="应用事件", command=apply_event, bootstyle="success").pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="取消", command=event_window.destroy, bootstyle="danger").pack(side=tk.LEFT, padx=5)
     
     def load_history_data(self):
         """加载历史数据"""
@@ -775,110 +727,116 @@ class EarthOnlinePanel:
         except Exception as e:
             print(f"保存历史数据出错: {e}")
     
+    def calculate_trend(self, history):
+        """计算趋势值"""
+        if len(history) < 2:
+            return 0
+        
+        # 使用最近的10个数据点计算趋势
+        recent_history = history[-10:]
+        x = np.arange(len(recent_history))
+        y = np.array(recent_history)
+        
+        try:
+            slope, _, _, _, _ = linregress(x, y)
+            return slope
+        except:
+            return 0
+
     def analyze_trends(self):
-        """分析属性变化趋势并预测"""
-        if len(self.history_data.get("timestamps", [])) < 5:
-            messagebox.showinfo("数据不足", "需要至少5个历史数据点才能分析趋势")
-            print("历史数据不足，无法分析趋势")
-            return
+        """分析属性趋势并显示结果"""
+        window = ttk.Toplevel(self.root)
+        window.title("属性趋势分析")
+        window.geometry("1000x600")  # 增加窗口宽度
         
-        # 创建分析窗口
-        trend_window = tk.Toplevel(self.root)
-        trend_window.title("属性趋势分析")
-        trend_window.geometry("600x500")
-        trend_window.grab_set()  # 模态窗口
+        main_frame = ttk.Frame(window, padding=10)
+        main_frame.pack(fill=tk.BOTH, expand=True)
         
-        # 创建分析界面
-        trend_frame = ttk.Frame(trend_window, padding=15)
+        # 创建左右两列的框架
+        left_frame = ttk.Frame(main_frame)
+        left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
+        
+        right_frame = ttk.Frame(main_frame)
+        right_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(5, 0))
+        
+        # 左侧：当前趋势
+        ttk.Label(left_frame, text="当前趋势分析", font=self.subtitle_font, bootstyle="info").pack(pady=(0, 10))
+        
+        trend_frame = ttk.Frame(left_frame)
         trend_frame.pack(fill=tk.BOTH, expand=True)
         
-        # 设置标题
-        title_label = ttk.Label(trend_frame, text="属性变化趋势分析", font=('Arial', 16, 'bold'), foreground=self.colors["highlight"])
-        title_label.grid(row=0, column=0, columnspan=3, sticky=tk.W, pady=(0, 15))
+        # 添加滚动条
+        trend_canvas = tk.Canvas(trend_frame)
+        trend_scrollbar = ttk.Scrollbar(trend_frame, orient="vertical", command=trend_canvas.yview)
+        trend_scrollable_frame = ttk.Frame(trend_canvas)
         
-        # 创建表格标题
-        ttk.Label(trend_frame, text="属性", font=self.subtitle_font).grid(row=1, column=0, sticky=tk.W, pady=(0, 10))
-        ttk.Label(trend_frame, text="当前值", font=self.subtitle_font).grid(row=1, column=1, sticky=tk.W, pady=(0, 10))
-        ttk.Label(trend_frame, text="预测趋势", font=self.subtitle_font).grid(row=1, column=2, sticky=tk.W, pady=(0, 10))
+        trend_scrollable_frame.bind(
+            "<Configure>",
+            lambda e: trend_canvas.configure(scrollregion=trend_canvas.bbox("all"))
+        )
         
-        # 为每个属性计算趋势并显示
-        row = 2
-        sorted_attrs = sorted(self.attributes.keys())
+        trend_canvas.create_window((0, 0), window=trend_scrollable_frame, anchor="nw")
+        trend_canvas.configure(yscrollcommand=trend_scrollbar.set)
         
-        for attr in sorted_attrs:
-            if attr in self.history_data["attributes"] and len(self.history_data["attributes"][attr]) >= 5:
-                # 获取历史数据
-                values = self.history_data["attributes"][attr]
+        trend_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        trend_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # 右侧：未来预测
+        ttk.Label(right_frame, text="未来预测", font=self.subtitle_font, bootstyle="info").pack(pady=(0, 10))
+        
+        prediction_frame = ttk.Frame(right_frame)
+        prediction_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # 添加滚动条
+        prediction_canvas = tk.Canvas(prediction_frame)
+        prediction_scrollbar = ttk.Scrollbar(prediction_frame, orient="vertical", command=prediction_canvas.yview)
+        prediction_scrollable_frame = ttk.Frame(prediction_canvas)
+        
+        prediction_scrollable_frame.bind(
+            "<Configure>",
+            lambda e: prediction_canvas.configure(scrollregion=prediction_canvas.bbox("all"))
+        )
+        
+        prediction_canvas.create_window((0, 0), window=prediction_scrollable_frame, anchor="nw")
+        prediction_canvas.configure(yscrollcommand=prediction_scrollbar.set)
+        
+        prediction_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        prediction_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # 分析每个属性的趋势
+        for attr, info in self.attributes.items():
+            # 从历史数据中获取该属性的历史记录
+            if attr in self.history_data["attributes"]:
+                history = self.history_data["attributes"][attr]
+                if len(history) < 2:
+                    continue
                 
-                # 使用简单线性回归分析趋势
-                x = np.arange(len(values))
-                try:
-                    slope, intercept, r_value, p_value, std_err = linregress(x, values)
-                    
-                    # 保存趋势斜率
-                    self.attributes[attr]["trend"] = slope
-                    
-                    # 显示属性信息
-                    icon = self.icons.get(attr, "")
-                    ttk.Label(trend_frame, text=f"{icon} {attr}", font=self.text_font).grid(row=row, column=0, sticky=tk.W, pady=2)
-                    
-                    # 当前值
-                    current_value = self.attributes[attr]["current_value"]
-                    value_text = f"{current_value:.1f}"
-                    ttk.Label(trend_frame, text=value_text, font=self.text_font).grid(row=row, column=1, sticky=tk.W, pady=2)
-                    
-                    # 趋势
-                    trend_text = ""
-                    if abs(slope) < 0.01:
-                        trend_text = "稳定"
-                        trend_color = self.colors["text"]
-                    elif slope > 0:
-                        trend_text = f"上升 (+{slope:.4f}/min)"
-                        trend_color = self.colors["good"]
-                    else:
-                        trend_text = f"下降 ({slope:.4f}/min)"
-                        trend_color = self.colors["danger"]
-                    
-                    trend_label = ttk.Label(trend_frame, text=trend_text, font=self.text_font, foreground=trend_color)
-                    trend_label.grid(row=row, column=2, sticky=tk.W, pady=2)
-                    
-                    row += 1
-                except Exception as e:
-                    print(f"分析 {attr} 趋势时出错: {e}")
+                # 计算趋势
+                trend = self.calculate_trend(history)
+                trend_text = f"{self.icons.get(attr, '')} {attr}: "
+                
+                if abs(trend) < 0.01:
+                    bootstyle = "default"
+                    trend_text += "保持稳定"
+                elif trend > 0:
+                    bootstyle = "success"
+                    trend_text += f"上升趋势 (+{trend:.2f}/min)"
+                else:
+                    bootstyle = "danger"
+                    trend_text += f"下降趋势 ({trend:.2f}/min)"
+                
+                # 显示趋势
+                ttk.Label(trend_scrollable_frame, text=trend_text, bootstyle=bootstyle).pack(pady=5, anchor="w")
+                
+                # 预测未来值
+                current_value = info["current_value"]
+                future_value = current_value + (trend * 30)  # 预测30分钟后的值
+                future_value = max(0, min(100, future_value))  # 确保值在0-100之间
+                prediction_text = f"{self.icons.get(attr, '')} {attr}: {future_value:.1f} (30分钟后)"
+                ttk.Label(prediction_scrollable_frame, text=prediction_text, bootstyle="info").pack(pady=5, anchor="w")
         
-        # 保存分析结果
-        self.save_data()
-        
-        # 预测未来值
-        ttk.Label(trend_frame, text=f"未来预测 ({len(self.history_data['timestamps'])}个历史点)", 
-                 font=self.subtitle_font, foreground=self.colors["highlight"]).grid(
-                     row=row, column=0, columnspan=3, sticky=tk.W, pady=(20, 10))
-        row += 1
-        
-        hours = [1, 6, 24]
-        for hour in hours:
-            ttk.Label(trend_frame, text=f"{hour}小时后:", font=self.text_font).grid(
-                row=row, column=0, sticky=tk.W, pady=(5, 0))
-            row += 1
-            
-            for attr in sorted_attrs[:5]:  # 只显示前5个属性的预测
-                if attr in self.attributes and "trend" in self.attributes[attr]:
-                    # 计算预测值
-                    current = self.attributes[attr]["current_value"]
-                    trend = self.attributes[attr]["trend"]
-                    
-                    # 斜率是每分钟变化率，转换为小时变化
-                    predicted = current + (trend * 60 * hour)
-                    predicted = max(0, min(100, predicted))
-                    
-                    icon = self.icons.get(attr, "")
-                    ttk.Label(trend_frame, text=f"  {icon} {attr}: {predicted:.1f}", 
-                             font=self.text_font).grid(row=row, column=0, columnspan=3, sticky=tk.W)
-                    row += 1
-        
-        # 关闭按钮
-        ttk.Button(trend_frame, text="关闭", command=trend_window.destroy).grid(
-            row=row, column=0, columnspan=3, pady=(20, 0))
+        # 底部按钮
+        ttk.Button(window, text="关闭", command=window.destroy, bootstyle="secondary").pack(pady=10)
     
     def analyze_with_ai(self):
         """使用AI分析当前状态并给出建议"""
@@ -965,7 +923,7 @@ class EarthOnlinePanel:
     
     def setup_thresholds(self):
         """设置阈值提醒"""
-        threshold_window = tk.Toplevel(self.root)
+        threshold_window = ttk.Toplevel(self.root)
         threshold_window.title("阈值提醒设置")
         threshold_window.geometry("500x600")
         threshold_window.grab_set()
@@ -975,7 +933,7 @@ class EarthOnlinePanel:
         setup_frame.pack(fill=tk.BOTH, expand=True)
         
         # 设置标题
-        title_label = ttk.Label(setup_frame, text="阈值提醒设置", font=('Arial', 16, 'bold'), foreground=self.colors["highlight"])
+        title_label = ttk.Label(setup_frame, text="阈值提醒设置", font=('Microsoft YaHei', 16, 'bold'), bootstyle="info")
         title_label.grid(row=0, column=0, columnspan=3, sticky=tk.W, pady=(0, 15))
         
         # 创建滚动框架
@@ -998,7 +956,7 @@ class EarthOnlinePanel:
         
         for category, attrs in self.categories.items():
             # 添加类别标题
-            ttk.Label(scrollable_frame, text=category, font=self.subtitle_font, foreground=self.colors["highlight"]).grid(
+            ttk.Label(scrollable_frame, text=category, font=self.subtitle_font, bootstyle="info").grid(
                 row=row, column=0, columnspan=3, sticky=tk.W, pady=(10, 5))
             row += 1
             
@@ -1019,7 +977,7 @@ class EarthOnlinePanel:
                 time_entry.grid(row=row, column=2, padx=5)
                 self.time_vars[attr] = time_var
                 
-                ttk.Label(scrollable_frame, text="(时间格式: HH:MM)", font=('Arial', 8)).grid(
+                ttk.Label(scrollable_frame, text="(时间格式: HH:MM)", font=('Microsoft YaHei', 8)).grid(
                     row=row, column=3, sticky=tk.W, padx=5)
                 
                 row += 1
@@ -1075,7 +1033,7 @@ class EarthOnlinePanel:
             except Exception as e:
                 messagebox.showerror("错误", f"保存设置失败: {e}")
         
-        save_button = ttk.Button(setup_frame, text="保存设置", command=save_settings)
+        save_button = ttk.Button(setup_frame, text="保存设置", command=save_settings, bootstyle="success")
         save_button.grid(row=2, column=0, columnspan=2, pady=(15, 0))
     
     def load_thresholds(self):
@@ -1112,6 +1070,8 @@ class EarthOnlinePanel:
         current_time = datetime.now()
         current_minute = current_time.strftime("%H:%M")
         
+        alerts = []  # 收集所有需要显示的警告
+        
         for attr, info in self.attributes.items():
             if attr not in self.threshold_alerts:
                 self.threshold_alerts[attr] = {"first_alert": False, "half_alert": False}
@@ -1122,19 +1082,17 @@ class EarthOnlinePanel:
             
             # 检查是否需要第一次提醒（刚刚低于阈值）
             if not self.threshold_alerts[attr]["first_alert"] and current_value <= threshold:
-                # 检查是否已经在这一分钟内提醒过
                 last_alert = self.last_alert_time[attr]["first"]
                 if last_alert is None or (current_time - last_alert).total_seconds() >= 60:
-                    messagebox.showwarning("属性提醒", f"{attr}已达到阈值({threshold})，当前值: {current_value:.1f}")
+                    alerts.append(f"{attr}已达到阈值({threshold})，当前值: {current_value:.1f}")
                     self.threshold_alerts[attr]["first_alert"] = True
                     self.last_alert_time[attr]["first"] = current_time
             
             # 检查是否需要第二次提醒（降至阈值的一半）
             if not self.threshold_alerts[attr]["half_alert"] and current_value <= threshold/2:
-                # 检查是否已经在这一分钟内提醒过
                 last_alert = self.last_alert_time[attr]["half"]
                 if last_alert is None or (current_time - last_alert).total_seconds() >= 60:
-                    messagebox.showwarning("属性警告", f"{attr}已降至危险水平({threshold/2})，当前值: {current_value:.1f}")
+                    alerts.append(f"{attr}已降至危险水平({threshold/2})，当前值: {current_value:.1f}")
                     self.threshold_alerts[attr]["half_alert"] = True
                     self.last_alert_time[attr]["half"] = current_time
             
@@ -1147,11 +1105,14 @@ class EarthOnlinePanel:
             
             # 检查是否到达预定时间
             if attr in self.scheduled_times and self.scheduled_times[attr] == current_minute:
-                # 检查是否已经在这一分钟内提醒过
                 last_alert = self.last_alert_time[attr].get("schedule")
                 if last_alert is None or (current_time - last_alert).total_seconds() >= 60:
-                    messagebox.showinfo("时间提醒", f"现在是{current_minute}，是时候关注{attr}了")
+                    alerts.append(f"现在是{current_minute}，是时候关注{attr}了")
                     self.last_alert_time[attr]["schedule"] = current_time
+        
+        # 如果有警告，统一显示
+        if alerts:
+            self.alert_manager.show_alert("属性提醒", "\n".join(alerts))
     
     def update_panel(self):
         """更新面板数据"""
@@ -1183,7 +1144,8 @@ class EarthOnlinePanel:
             info["value_label"].config(text=f"{percentage}%")
             
             # 根据值更新进度条样式
-            info["progress_bar"].configure(style=self.get_progress_style(percentage))
+            bootstyle = self.get_progress_style(percentage)
+            info["progress_bar"].configure(bootstyle=bootstyle)
         
         # 每隔一段时间保存历史数据
         if now - self.last_save_time > self.history_save_interval:
@@ -1443,7 +1405,13 @@ class EarthOnlinePanel:
             wait_window.destroy()
 
 def main():
-    root = tk.Tk()
+    root = ttk.Window(
+        title="地球Online看板",
+        themename="litera",  # 使用litera主题
+        size=(1000, 800),
+        minsize=(800, 700),
+        resizable=(True, True)
+    )
     app = EarthOnlinePanel(root)
     root.mainloop()
 
