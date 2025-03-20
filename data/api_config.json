@@ -1,0 +1,12 @@
+{
+    "api_key": "",
+    "model": "Qwen/Qwen2.5-Coder-32B-Instruct",
+    "available_models": [
+        "Qwen/Qwen2.5-Coder-32B-Instruct",
+        "Qwen/Qwen2.5-7B-Instruct",
+        "BAAI/bge-m3"
+    ],
+    "prompts": {
+        "analysis": "作为一个AI健康顾问，你看到的是用户的数据面板，以及增减趋势。其中，生理需求、社交需求每项数据的最糟糕情况是0%，最优情况是100%；能力属性越高越好。请列出具体数据，分析以下用户状态数据并给出建议：\n玩家：{player_name}\n时间：{current_time}\n\n当前属性状态：\n{attributes}\n\n请提供：\n1. 需要注意的问题\n2. 表现良好的方面\n3. 具体的改善建议\n4. 未来发展预测"
+    }
+}

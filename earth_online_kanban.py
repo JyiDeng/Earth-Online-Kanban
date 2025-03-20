@@ -13,6 +13,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
 import numpy as np
 from scipy.stats import linregress
+import requests
 
 # 重定向stdout到窗口显示和文件
 class StdoutRedirector:
@@ -51,12 +52,15 @@ class StdoutRedirector:
 
 class EarthOnlinePanel:
     def __init__(self, root):
+        # 确保outputs目录存在
+        os.makedirs("outputs", exist_ok=True)
+        
         self.root = root
         self.root.title("地球Online看板")
-        self.root.geometry("1000x600")
+        self.root.geometry("1000x800")
         
         # 设置应用程序图标和主题
-        self.root.minsize(800, 500)
+        self.root.minsize(800, 700)
         
         # 应用主题风格
         self.style = ttk.Style()
@@ -115,6 +119,22 @@ class EarthOnlinePanel:
         # 更新间隔设置（秒）
         self.update_interval = 1
         self.history_save_interval = 2  # 每5分钟保存历史数据
+        
+        # 初始化阈值设置
+        self.thresholds = {}
+        self.scheduled_times = {}
+        self.load_thresholds()
+        
+        # 添加API配置
+        self.api_key = ""
+        self.api_model = ""
+        self.available_models = []
+        self.prompts = {}
+        self.load_api_config()
+        
+        # 添加阈值提醒状态记录
+        self.threshold_alerts = {}  # 用于记录阈值提醒状态
+        self.last_alert_time = {}  # 用于记录上次提醒时间
         
         # 创建UI元素
         self.create_ui()
@@ -255,6 +275,30 @@ class EarthOnlinePanel:
         self.categories_frame.columnconfigure(1, weight=1)
         self.categories_frame.columnconfigure(2, weight=1)
         
+        # 创建AI分析和阈值提醒窗口
+        self.analysis_frame = ttk.Frame(self.main_frame)
+        self.analysis_frame.pack(fill=tk.X, pady=(0, 0))  # 增加与上方内容的间距
+        
+        # AI分析窗口
+        self.ai_frame = ttk.LabelFrame(self.analysis_frame, text="AI状态分析")
+        self.ai_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
+        
+        self.ai_text = tk.Text(self.ai_frame, height=8, width=40, wrap=tk.WORD, font=('Arial', 10))  # 增加高度
+        self.ai_text.pack(fill=tk.BOTH, expand=True, pady=5, padx=5)
+        
+        self.analyze_ai_button = ttk.Button(self.ai_frame, text="AI分析当前状态", command=self.analyze_with_ai)
+        self.analyze_ai_button.pack(pady=(0, 5))
+        
+        # 阈值提醒窗口
+        self.threshold_frame = ttk.LabelFrame(self.analysis_frame, text="阈值提醒设置")
+        self.threshold_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(5, 0))
+        
+        self.threshold_text = tk.Text(self.threshold_frame, height=8, width=40, wrap=tk.WORD, font=('Arial', 10))  # 增加高度
+        self.threshold_text.pack(fill=tk.BOTH, expand=True, pady=5, padx=5)
+        
+        self.threshold_button = ttk.Button(self.threshold_frame, text="设置阈值提醒", command=self.setup_thresholds)
+        self.threshold_button.pack(pady=(0, 5))
+        
         # 创建底部控制栏
         self.control_frame = ttk.Frame(self.main_frame)
         self.control_frame.pack(fill=tk.X, pady=(15, 0))
@@ -366,29 +410,44 @@ class EarthOnlinePanel:
         """打开设置窗口"""
         setup_window = tk.Toplevel(self.root)
         setup_window.title("设置")
-        setup_window.geometry("450x600")
-        setup_window.grab_set()  # 模态窗口
+        setup_window.geometry("450x650")
+        setup_window.grab_set()
         
         # 创建设置界面
         setup_frame = ttk.Frame(setup_window, padding=15)
         setup_frame.pack(fill=tk.BOTH, expand=True)
         
-        # 设置标题
+        # API设置
+        api_frame = ttk.LabelFrame(setup_frame, text="SiliconFlow API设置", padding=10)
+        api_frame.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 15))
+        
+        ttk.Label(api_frame, text="API Key:", font=self.text_font).grid(row=0, column=0, sticky=tk.W, pady=5)
+        api_key_entry = ttk.Entry(api_frame, width=40, font=self.text_font)
+        api_key_entry.grid(row=0, column=1, padx=5, pady=5)
+        api_key_entry.insert(0, self.api_key)
+        
+        # 添加模型选择
+        ttk.Label(api_frame, text="模型:", font=self.text_font).grid(row=1, column=0, sticky=tk.W, pady=5)
+        model_var = tk.StringVar(value=self.api_model)
+        model_combobox = ttk.Combobox(api_frame, textvariable=model_var, values=self.available_models, font=self.text_font, width=30)
+        model_combobox.grid(row=1, column=1, padx=5, pady=5, sticky=tk.W)
+        
+        # 原有的设置内容
         title_label = ttk.Label(setup_frame, text="玩家设置", font=('Arial', 16, 'bold'), foreground=self.colors["highlight"])
-        title_label.grid(row=0, column=0, columnspan=2, sticky=tk.W, pady=(0, 15))
+        title_label.grid(row=2, column=0, columnspan=2, sticky=tk.W, pady=(0, 15))
         
         # 玩家名称设置
-        ttk.Label(setup_frame, text="玩家名称:", font=self.subtitle_font).grid(row=1, column=0, sticky=tk.W, pady=(0, 10))
+        ttk.Label(setup_frame, text="玩家名称:", font=self.subtitle_font).grid(row=3, column=0, sticky=tk.W, pady=(0, 10))
         name_entry = ttk.Entry(setup_frame, width=30, font=self.text_font)
-        name_entry.grid(row=1, column=1, sticky=tk.W, pady=(0, 10))
+        name_entry.grid(row=3, column=1, sticky=tk.W, pady=(0, 10))
         name_entry.insert(0, self.player_name)
         
         # 添加分隔线
         separator = ttk.Separator(setup_frame, orient='horizontal')
-        separator.grid(row=2, column=0, columnspan=2, sticky="ew", pady=10)
+        separator.grid(row=4, column=0, columnspan=2, sticky="ew", pady=10)
         
         # 属性设置
-        ttk.Label(setup_frame, text="属性设置:", font=self.subtitle_font).grid(row=3, column=0, columnspan=2, sticky=tk.W, pady=(5, 10))
+        ttk.Label(setup_frame, text="属性设置:", font=self.subtitle_font).grid(row=5, column=0, columnspan=2, sticky=tk.W, pady=(5, 10))
         
         # 创建滚动框架
         canvas = tk.Canvas(setup_frame, background=self.colors["bg"], highlightthickness=0)
@@ -405,9 +464,9 @@ class EarthOnlinePanel:
         canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
         canvas.configure(yscrollcommand=scrollbar.set)
         
-        canvas.grid(row=4, column=0, columnspan=2, sticky="nsew")
-        scrollbar.grid(row=4, column=2, sticky="ns")
-        setup_frame.grid_rowconfigure(4, weight=1)
+        canvas.grid(row=6, column=0, columnspan=2, sticky="nsew")
+        scrollbar.grid(row=6, column=2, sticky="ns")
+        setup_frame.grid_rowconfigure(6, weight=1)
         setup_frame.grid_columnconfigure(0, weight=0)
         setup_frame.grid_columnconfigure(1, weight=1)
         
@@ -457,10 +516,15 @@ class EarthOnlinePanel:
         
         # 添加分隔线
         separator2 = ttk.Separator(setup_frame, orient='horizontal')
-        separator2.grid(row=5, column=0, columnspan=2, sticky="ew", pady=10)
+        separator2.grid(row=7, column=0, columnspan=2, sticky="ew", pady=10)
         
         # 确认按钮
         def apply_settings():
+            # 保存API设置
+            self.api_key = api_key_entry.get().strip()
+            self.api_model = model_var.get()
+            self.save_api_config()
+            
             # 更新玩家名称
             self.player_name = name_entry.get()
             self.name_label.config(text=f"玩家名称: {self.player_name}")
@@ -488,7 +552,7 @@ class EarthOnlinePanel:
             setup_window.destroy()
         
         button_frame = ttk.Frame(setup_frame)
-        button_frame.grid(row=6, column=0, columnspan=2, pady=(10, 0))
+        button_frame.grid(row=8, column=0, columnspan=2, pady=(10, 0))
         
         ttk.Button(button_frame, text="确认", command=apply_settings).pack(side=tk.LEFT, padx=(0, 5))
         ttk.Button(button_frame, text="取消", command=setup_window.destroy).pack(side=tk.LEFT)
@@ -798,6 +862,273 @@ class EarthOnlinePanel:
         ttk.Button(trend_frame, text="关闭", command=trend_window.destroy).grid(
             row=row, column=0, columnspan=3, pady=(20, 0))
     
+    def analyze_with_ai(self):
+        """使用AI分析当前状态并给出建议"""
+        # 收集当前状态数据
+        current_state = {
+            "player_name": self.player_name,
+            "current_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "attributes": {}
+        }
+        
+        for attr, info in self.attributes.items():
+            current_state["attributes"][attr] = {
+                "value": info["current_value"],
+                "trend": info.get("trend", 0.0)
+            }
+        
+        # 分析状态
+        analysis = self.generate_ai_analysis(current_state)
+        
+        # 更新AI分析文本框
+        self.ai_text.delete(1.0, tk.END)
+        self.ai_text.insert(tk.END, analysis)
+    
+    def generate_ai_analysis(self, state):
+        """使用AI生成分析结果"""
+        if not self.prompts.get("analysis"):
+            return "错误：未找到分析提示词配置"
+            
+        # 构建属性状态文本
+        attributes_text = ""
+        for attr, info in state["attributes"].items():
+            attributes_text += f"{attr}: {info['value']:.1f} (趋势: {info.get('trend', 0.0):.4f})\n"
+        
+        # 使用配置中的提示词模板
+        prompt = self.prompts["analysis"].format(
+            player_name=state["player_name"],
+            current_time=state["current_time"],
+            attributes=attributes_text
+        )
+        
+        # 创建等待提示窗口
+        wait_window = tk.Toplevel(self.root)
+        wait_window.title("请稍候")
+        wait_window.geometry("300x100")
+        wait_window.transient(self.root)
+        wait_window.grab_set()
+        
+        # 添加等待消息
+        ttk.Label(wait_window, text="正在生成分析结果，请耐心等待...", 
+                 font=self.text_font, wraplength=250).pack(pady=20)
+        
+        # 更新UI
+        self.root.update()
+        
+        try:
+            # 调用API
+            response = self.call_deepseek_api(prompt)
+            
+            # 关闭等待窗口
+            wait_window.destroy()
+            
+            if response:
+                # 保存AI回复到文件
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                output_file = os.path.join("outputs", f"ai_analysis_{timestamp}.txt")
+                try:
+                    with open(output_file, "w", encoding="utf-8") as f:
+                        f.write(f"时间: {state['current_time']}\n")
+                        f.write(f"玩家: {state['player_name']}\n\n")
+                        f.write("属性状态:\n")
+                        f.write(attributes_text)
+                        f.write("\nAI分析结果:\n")
+                        f.write(response)
+                    print(f"AI分析结果已保存到: {output_file}")
+                except Exception as e:
+                    print(f"保存AI分析结果时出错: {e}")
+                
+                return response
+            else:
+                return "API调用失败，请检查配置和网络连接"
+        except Exception as e:
+            wait_window.destroy()
+            return f"生成分析时出错: {str(e)}"
+    
+    def setup_thresholds(self):
+        """设置阈值提醒"""
+        threshold_window = tk.Toplevel(self.root)
+        threshold_window.title("阈值提醒设置")
+        threshold_window.geometry("500x600")
+        threshold_window.grab_set()
+        
+        # 创建设置界面
+        setup_frame = ttk.Frame(threshold_window, padding=15)
+        setup_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # 设置标题
+        title_label = ttk.Label(setup_frame, text="阈值提醒设置", font=('Arial', 16, 'bold'), foreground=self.colors["highlight"])
+        title_label.grid(row=0, column=0, columnspan=3, sticky=tk.W, pady=(0, 15))
+        
+        # 创建滚动框架
+        canvas = tk.Canvas(setup_frame)
+        scrollbar = ttk.Scrollbar(setup_frame, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(
+                scrollregion=canvas.bbox("all")
+            )
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # 阈值设置
+        row = 0
+        self.threshold_vars = {}
+        self.time_vars = {}
+        
+        for category, attrs in self.categories.items():
+            # 添加类别标题
+            ttk.Label(scrollable_frame, text=category, font=self.subtitle_font, foreground=self.colors["highlight"]).grid(
+                row=row, column=0, columnspan=3, sticky=tk.W, pady=(10, 5))
+            row += 1
+            
+            for attr in attrs:
+                icon = self.icons.get(attr, "")
+                ttk.Label(scrollable_frame, text=f"{icon} {attr}", font=self.text_font).grid(
+                    row=row, column=0, sticky=tk.W, pady=2)
+                
+                # 阈值输入 - 使用已保存的值
+                threshold_var = tk.StringVar(value=str(self.thresholds.get(attr, 30)))
+                threshold_entry = ttk.Entry(scrollable_frame, width=8, textvariable=threshold_var)
+                threshold_entry.grid(row=row, column=1, padx=5)
+                self.threshold_vars[attr] = threshold_var
+                
+                # 时间输入 - 使用已保存的值
+                time_var = tk.StringVar(value=self.scheduled_times.get(attr, ""))
+                time_entry = ttk.Entry(scrollable_frame, width=10, textvariable=time_var)
+                time_entry.grid(row=row, column=2, padx=5)
+                self.time_vars[attr] = time_var
+                
+                ttk.Label(scrollable_frame, text="(时间格式: HH:MM)", font=('Arial', 8)).grid(
+                    row=row, column=3, sticky=tk.W, padx=5)
+                
+                row += 1
+        
+        # 放置滚动框架
+        canvas.grid(row=1, column=0, sticky="nsew")
+        scrollbar.grid(row=1, column=1, sticky="ns")
+        setup_frame.grid_rowconfigure(1, weight=1)
+        setup_frame.grid_columnconfigure(0, weight=1)
+        
+        # 确认按钮
+        def apply_thresholds():
+            self.thresholds = {}
+            self.scheduled_times = {}
+            
+            for attr in self.attributes:
+                try:
+                    threshold = float(self.threshold_vars[attr].get())
+                    self.thresholds[attr] = threshold
+                except ValueError:
+                    self.thresholds[attr] = 30  # 默认值
+                
+                time_str = self.time_vars[attr].get().strip()
+                if time_str:
+                    self.scheduled_times[attr] = time_str
+            
+            self.save_thresholds()
+            self.update_threshold_text()
+            threshold_window.destroy()
+        
+        ttk.Button(setup_frame, text="确认", command=apply_thresholds).grid(
+            row=2, column=0, pady=(10, 0))
+        
+        ttk.Button(setup_frame, text="取消", command=threshold_window.destroy).grid(
+            row=2, column=1, pady=(10, 0))
+    
+    def save_thresholds(self):
+        """保存阈值设置"""
+        data = {
+            "thresholds": self.thresholds,
+            "scheduled_times": self.scheduled_times
+        }
+        
+        try:
+            with open("data/thresholds.json", "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            print("阈值设置已保存")
+        except Exception as e:
+            print(f"保存阈值设置时出错: {e}")
+    
+    def load_thresholds(self):
+        """加载阈值设置"""
+        try:
+            if os.path.exists("data/thresholds.json"):
+                with open("data/thresholds.json", "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                self.thresholds = data.get("thresholds", {})
+                self.scheduled_times = data.get("scheduled_times", {})
+            else:
+                self.thresholds = {attr: 30 for attr in self.attributes}
+                self.scheduled_times = {}
+        except Exception as e:
+            print(f"加载阈值设置时出错: {e}")
+            self.thresholds = {attr: 30 for attr in self.attributes}
+            self.scheduled_times = {}
+    
+    def update_threshold_text(self):
+        """更新阈值提醒文本框"""
+        self.threshold_text.delete(1.0, tk.END)
+        text = "当前阈值设置：\n"
+        
+        for attr, threshold in self.thresholds.items():
+            text += f"{attr}: {threshold}"
+            if attr in self.scheduled_times:
+                text += f" (预定时间: {self.scheduled_times[attr]})"
+            text += "\n"
+        
+        self.threshold_text.insert(tk.END, text)
+    
+    def check_thresholds(self):
+        """检查阈值和预定时间"""
+        current_time = datetime.now()
+        current_minute = current_time.strftime("%H:%M")
+        
+        for attr, info in self.attributes.items():
+            if attr not in self.threshold_alerts:
+                self.threshold_alerts[attr] = {"first_alert": False, "half_alert": False}
+                self.last_alert_time[attr] = {"first": None, "half": None}
+            
+            current_value = info["current_value"]
+            threshold = self.thresholds.get(attr, 30)
+            
+            # 检查是否需要第一次提醒（刚刚低于阈值）
+            if not self.threshold_alerts[attr]["first_alert"] and current_value <= threshold:
+                # 检查是否已经在这一分钟内提醒过
+                last_alert = self.last_alert_time[attr]["first"]
+                if last_alert is None or (current_time - last_alert).total_seconds() >= 60:
+                    messagebox.showwarning("属性提醒", f"{attr}已达到阈值({threshold})，当前值: {current_value:.1f}")
+                    self.threshold_alerts[attr]["first_alert"] = True
+                    self.last_alert_time[attr]["first"] = current_time
+            
+            # 检查是否需要第二次提醒（降至阈值的一半）
+            if not self.threshold_alerts[attr]["half_alert"] and current_value <= threshold/2:
+                # 检查是否已经在这一分钟内提醒过
+                last_alert = self.last_alert_time[attr]["half"]
+                if last_alert is None or (current_time - last_alert).total_seconds() >= 60:
+                    messagebox.showwarning("属性警告", f"{attr}已降至危险水平({threshold/2})，当前值: {current_value:.1f}")
+                    self.threshold_alerts[attr]["half_alert"] = True
+                    self.last_alert_time[attr]["half"] = current_time
+            
+            # 重置提醒状态（当值回升超过阈值时）
+            if current_value > threshold:
+                self.threshold_alerts[attr]["first_alert"] = False
+                self.threshold_alerts[attr]["half_alert"] = False
+                self.last_alert_time[attr]["first"] = None
+                self.last_alert_time[attr]["half"] = None
+            
+            # 检查是否到达预定时间
+            if attr in self.scheduled_times and self.scheduled_times[attr] == current_minute:
+                # 检查是否已经在这一分钟内提醒过
+                last_alert = self.last_alert_time[attr].get("schedule")
+                if last_alert is None or (current_time - last_alert).total_seconds() >= 60:
+                    messagebox.showinfo("时间提醒", f"现在是{current_minute}，是时候关注{attr}了")
+                    self.last_alert_time[attr]["schedule"] = current_time
+    
     def update_panel(self):
         """更新面板数据"""
         # 更新时间
@@ -838,7 +1169,10 @@ class EarthOnlinePanel:
             # 自动分析趋势
             self.update_trends()
         
-        # 安排下一次更新 (降低刷新频率到60秒一次)
+        # 检查阈值和预定时间
+        self.check_thresholds()
+        
+        # 安排下一次更新
         self.root.after(self.update_interval * 1000, self.update_panel)
     
     def update_trends(self):
@@ -869,6 +1203,71 @@ class EarthOnlinePanel:
                 
                 except Exception as e:
                     print(f"更新 {attr} 趋势时出错: {e}")
+
+    def load_api_config(self):
+        """加载API配置"""
+        try:
+            if os.path.exists("data/api_config.json"):
+                with open("data/api_config.json", "r", encoding="utf-8") as f:
+                    config = json.load(f)
+                self.api_key = config.get("api_key", "")
+                self.api_model = config.get("model", "")
+                self.available_models = config.get("available_models", [])
+                self.prompts = config.get("prompts", {})
+        except Exception as e:
+            print(f"加载API配置出错: {e}")
+            self.available_models = []
+            self.prompts = {}
+    
+    def save_api_config(self):
+        """保存API配置"""
+        try:
+            with open("data/api_config.json", "r", encoding="utf-8") as f:
+                config = json.load(f)
+            
+            config["api_key"] = self.api_key
+            config["model"] = self.api_model
+            
+            with open("data/api_config.json", "w", encoding="utf-8") as f:
+                json.dump(config, f, ensure_ascii=False, indent=4)
+            print("API配置已保存")
+        except Exception as e:
+            print(f"保存API配置出错: {e}")
+    
+    def call_deepseek_api(self, prompt):
+        """调用SiliconFlow API进行分析"""
+        if not self.api_key:
+            messagebox.showwarning("API未配置", "请先在设置中配置SiliconFlow API Key")
+            return None
+            
+        try:
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            }
+            
+            data = {
+                "model": self.api_model,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.7,
+                "max_tokens": 800
+            }
+            
+            response = requests.post(
+                "https://api.siliconflow.cn/v1/chat/completions",
+                headers=headers,
+                json=data
+            )
+            
+            if response.status_code == 200:
+                return response.json()["choices"][0]["message"]["content"]
+            else:
+                print(f"API调用失败: {response.status_code} - {response.text}")
+                return None
+                
+        except Exception as e:
+            print(f"调用SiliconFlow API时出错: {e}")
+            return None
 
 def main():
     root = tk.Tk()
