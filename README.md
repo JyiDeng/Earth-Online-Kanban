@@ -76,11 +76,18 @@ python earth_online_kanban.py
 ## 项目结构
 
 ```
-earth-online-kanban/
-├── earth_online_kanban.py  # 主程序文件
-├── player_data.json        # 玩家数据存储文件
-├── README.md               # 项目说明文档
-└── pic/                    # 截图文件夹
+earth_online_kanban/
+├── earth_online_kanban.py  # 主程序
+├── modules/
+│   ├── __init__.py
+│   ├── ui.py          # UI管理
+│   ├── config.py      # 配置管理
+│   ├── api.py         # API调用
+│   ├── logger.py      # 日志管理
+│   └── model.py       # 模型管理
+├── data/              # 配置和数据文件
+├── model/             # 模型文件
+└── outputs/           # AI分析输出
 ```
 
 ## 扩展计划

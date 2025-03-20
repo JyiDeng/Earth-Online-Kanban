@@ -321,7 +321,7 @@ class EarthOnlinePanel:
         self.event_button.pack(side=tk.LEFT, padx=(10, 0))
         
         # 添加训练模型按钮
-        self.train_button = ttk.Button(self.control_frame, text="训练模型", command=self.train_and_save_model)
+        self.train_button = ttk.Button(self.control_frame, text="训练模型(事件对应属性增减)", command=self.train_and_save_model)
         self.train_button.pack(side=tk.LEFT, padx=(10, 0))
         
         # 添加分析趋势按钮
@@ -967,9 +967,7 @@ class EarthOnlinePanel:
         
         scrollable_frame.bind(
             "<Configure>",
-            lambda e: canvas.configure(
-                scrollregion=canvas.bbox("all")
-            )
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
         )
         
         canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
@@ -991,13 +989,13 @@ class EarthOnlinePanel:
                 ttk.Label(scrollable_frame, text=f"{icon} {attr}", font=self.text_font).grid(
                     row=row, column=0, sticky=tk.W, pady=2)
                 
-                # 阈值输入 - 使用已保存的值
+                # 阈值输入
                 threshold_var = tk.StringVar(value=str(self.thresholds.get(attr, 30)))
                 threshold_entry = ttk.Entry(scrollable_frame, width=8, textvariable=threshold_var)
                 threshold_entry.grid(row=row, column=1, padx=5)
                 self.threshold_vars[attr] = threshold_var
                 
-                # 时间输入 - 使用已保存的值
+                # 时间输入
                 time_var = tk.StringVar(value=self.scheduled_times.get(attr, ""))
                 time_entry = ttk.Entry(scrollable_frame, width=10, textvariable=time_var)
                 time_entry.grid(row=row, column=2, padx=5)
@@ -1008,51 +1006,50 @@ class EarthOnlinePanel:
                 
                 row += 1
         
-        # 放置滚动框架
+        # 布局滚动框架
         canvas.grid(row=1, column=0, sticky="nsew")
         scrollbar.grid(row=1, column=1, sticky="ns")
+        
         setup_frame.grid_rowconfigure(1, weight=1)
         setup_frame.grid_columnconfigure(0, weight=1)
         
-        # 确认按钮
-        def apply_thresholds():
-            self.thresholds = {}
-            self.scheduled_times = {}
-            
-            for attr in self.attributes:
+        # 保存按钮
+        def save_settings():
+            # 保存阈值设置
+            for attr, var in self.threshold_vars.items():
                 try:
-                    threshold = float(self.threshold_vars[attr].get())
-                    self.thresholds[attr] = threshold
+                    value = float(var.get())
+                    if 0 <= value <= 100:
+                        self.thresholds[attr] = value
+                    else:
+                        messagebox.showwarning("警告", f"{attr}的阈值必须在0-100之间")
+                        return
                 except ValueError:
-                    self.thresholds[attr] = 30  # 默认值
-                
-                time_str = self.time_vars[attr].get().strip()
-                if time_str:
-                    self.scheduled_times[attr] = time_str
+                    messagebox.showwarning("警告", f"{attr}的阈值必须是数字")
+                    return
             
-            self.save_thresholds()
-            self.update_threshold_text()
-            threshold_window.destroy()
+            # 保存时间设置
+            for attr, var in self.time_vars.items():
+                time_str = var.get().strip()
+                if time_str:
+                    try:
+                        datetime.strptime(time_str, "%H:%M")
+                        self.scheduled_times[attr] = time_str
+                    except ValueError:
+                        messagebox.showwarning("警告", f"{attr}的时间格式必须是HH:MM")
+                        return
+                else:
+                    self.scheduled_times[attr] = ""
+            
+            # 保存到文件
+            if self.config_manager.save_thresholds(self.thresholds, self.scheduled_times):
+                messagebox.showinfo("成功", "设置已保存")
+                threshold_window.destroy()
+            else:
+                messagebox.showerror("错误", "保存设置失败")
         
-        ttk.Button(setup_frame, text="确认", command=apply_thresholds).grid(
-            row=2, column=0, pady=(10, 0))
-        
-        ttk.Button(setup_frame, text="取消", command=threshold_window.destroy).grid(
-            row=2, column=1, pady=(10, 0))
-    
-    def save_thresholds(self):
-        """保存阈值设置"""
-        data = {
-            "thresholds": self.thresholds,
-            "scheduled_times": self.scheduled_times
-        }
-        
-        try:
-            with open("data/thresholds.json", "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-            print("阈值设置已保存")
-        except Exception as e:
-            print(f"保存阈值设置时出错: {e}")
+        save_button = ttk.Button(setup_frame, text="保存设置", command=save_settings)
+        save_button.grid(row=2, column=0, columnspan=2, pady=(15, 0))
     
     def load_thresholds(self):
         """加载阈值设置"""
