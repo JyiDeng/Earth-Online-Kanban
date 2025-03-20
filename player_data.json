@@ -1,7 +1,7 @@
 {
   "player_name": "地球玩家001",
   "attributes": {
-    "饥饿": {
+    "饱腹": {
       "value": 65,
       "change_rate": -0.005
     },
@@ -9,7 +9,7 @@
       "value": 70,
       "change_rate": -0.008
     },
-    "上厕所": {
+    "如厕": {
       "value": 40,
       "change_rate": 0.004
     },
@@ -21,7 +21,7 @@
       "value": 85,
       "change_rate": -0.001
     },
-    "社交欲望": {
+    "社交": {
       "value": 55,
       "change_rate": 0.002
     },
@@ -37,7 +37,7 @@
       "value": 68,
       "change_rate": 0.0005
     },
-    "爱心": {
+    "安全感": {
       "value": 80,
       "change_rate": -0.0003
     },

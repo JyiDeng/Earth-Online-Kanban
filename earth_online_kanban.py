@@ -1,11 +1,30 @@
 import tkinter as tk
-from tkinter import ttk, font
+from tkinter import ttk, font, messagebox
 import json
 import time
 import math
 import random
 from datetime import datetime
 import os
+import pandas as pd
+import pickle
+import sys
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+
+# 重定向stdout到窗口显示
+class StdoutRedirector:
+    def __init__(self, text_widget):
+        self.text_widget = text_widget
+        self.buffer = ""
+
+    def write(self, string):
+        self.buffer += string
+        self.text_widget.insert(tk.END, string)
+        self.text_widget.see(tk.END)
+
+    def flush(self):
+        pass
 
 class EarthOnlinePanel:
     def __init__(self, root):
@@ -64,6 +83,7 @@ class EarthOnlinePanel:
         # 初始化数据
         self.attributes = {}
         self.last_update_time = time.time()
+        self.model = None
         
         # 创建UI元素
         self.create_ui()
@@ -73,6 +93,32 @@ class EarthOnlinePanel:
         
         # 启动定时更新
         self.update_panel()
+        
+        # 加载模型（如果存在）
+        self.load_model()
+    
+    def load_model(self):
+        """加载已训练的模型"""
+        model_path = "model/event_model.pkl"
+        if os.path.exists(model_path):
+            try:
+                with open(model_path, 'rb') as f:
+                    self.model = pickle.load(f)
+                messagebox.showinfo("模型加载", "已成功加载训练模型")
+            except Exception as e:
+                messagebox.showerror("模型加载错误", f"加载模型时出错: {e}")
+        else:
+            messagebox.showinfo("模型加载", "未找到已训练的模型，请点击'训练模型'按钮")
+    
+    def save_model(self, model):
+        """保存训练好的模型"""
+        model_path = "model/event_model.pkl"
+        try:
+            with open(model_path, 'wb') as f:
+                pickle.dump(model, f)
+            messagebox.showinfo("模型保存", "模型已成功保存")
+        except Exception as e:
+            messagebox.showerror("模型保存错误", f"保存模型时出错: {e}")
     
     def get_progress_style(self, value):
         """根据值返回对应的样式"""
@@ -108,23 +154,23 @@ class EarthOnlinePanel:
         
         # 创建各个类别的列
         self.categories = {
-            "生理需求": ["饥饿", "口渴", "上厕所", "肥胖指数", "心脏健康度"],
-            "情感状态": ["社交欲望", "情绪", "成就感", "情商", "爱心"],
+            "生理需求": ["饱腹", "口渴", "如厕", "肥胖指数", "心脏健康度"],
+            "社会需求": ["社交", "情绪", "成就感", "情商", "安全感"],
             "能力属性": ["肌肉强度", "敏捷", "抗击打能力", "魅力", "道德"]
         }
         
         # 图标映射
         self.icons = {
-            "饥饿": "🍔",
+            "饱腹": "🍔",
             "口渴": "💧",
-            "上厕所": "🚽",
+            "如厕": "🚽",
             "肥胖指数": "⚖️",
             "心脏健康度": "🩷",
-            "社交欲望": "👥",
+            "社交": "👥",
             "情绪": "😊",
             "成就感": "🏆",
             "情商": "🧠",
-            "爱心": "💖",
+            "安全感": "💖",
             "肌肉强度": "💪",
             "敏捷": "🏃",
             "抗击打能力": "🏠",
@@ -190,6 +236,36 @@ class EarthOnlinePanel:
         
         self.reset_button = ttk.Button(self.control_frame, text="重置", command=self.reset_data)
         self.reset_button.pack(side=tk.RIGHT)
+        
+        # 添加事件按钮
+        self.event_button = ttk.Button(self.control_frame, text="事件", command=self.open_event_window)
+        self.event_button.pack(side=tk.LEFT, padx=(10, 0))
+        
+        # 添加训练模型按钮
+        self.train_button = ttk.Button(self.control_frame, text="训练模型", command=self.train_and_save_model)
+        self.train_button.pack(side=tk.LEFT, padx=(10, 0))
+        
+        # 添加日志窗口
+        self.log_frame = ttk.LabelFrame(self.main_frame, text="系统日志")
+        self.log_frame.pack(fill=tk.X, pady=(15, 0), after=separator)
+        
+        self.log_text = tk.Text(self.log_frame, height=5, width=50, wrap=tk.WORD, font=('Courier', 9))
+        self.log_text.pack(fill=tk.X, expand=True, pady=5, padx=5)
+        
+        # 重定向标准输出到日志窗口
+        self.stdout_redirector = StdoutRedirector(self.log_text)
+        sys.stdout = self.stdout_redirector
+    
+    def train_and_save_model(self):
+        """训练模型并保存"""
+        try:
+            model = self.train_model()
+            self.model = model
+            self.save_model(model)
+            print("模型训练和保存成功")
+        except Exception as e:
+            messagebox.showerror("训练错误", f"训练模型时出错: {e}")
+            print(f"训练模型时出错: {e}")
     
     def load_mock_data(self):
         """加载模拟数据或创建默认数据"""
@@ -375,6 +451,154 @@ class EarthOnlinePanel:
         
         ttk.Button(button_frame, text="确认", command=apply_settings).pack(side=tk.LEFT, padx=(0, 5))
         ttk.Button(button_frame, text="取消", command=setup_window.destroy).pack(side=tk.LEFT)
+    
+    def train_model(self):
+        """训练机器学习模型以预测事件影响值"""
+        # 加载数据
+        data = pd.read_csv('model/event_data.csv')
+        
+        # 特征和目标
+        X = pd.get_dummies(data[['event_name', 'attribute']])
+        y = data['impact_value']
+        
+        # 拆分数据集
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        
+        # 训练模型
+        model = LinearRegression()
+        model.fit(X_train, y_train)
+        
+        print(f"模型训练完成，特征数量: {len(model.feature_names_in_)}")
+        return model
+
+    def predict_impact(self, event_name, attribute):
+        """预测事件对属性的影响值"""
+        if self.model is None:
+            messagebox.showwarning("模型未加载", "请先训练模型")
+            print("模型未加载，无法预测")
+            return 0
+        
+        try:
+            # 创建输入数据
+            input_data = pd.DataFrame([[event_name, attribute]], columns=['event_name', 'attribute'])
+            input_data = pd.get_dummies(input_data)
+            
+            # 确保输入数据与训练数据的特征一致
+            for col in self.model.feature_names_in_:
+                if col not in input_data:
+                    input_data[col] = 0
+            
+            # 重新排序列，确保与训练数据一致
+            input_data = input_data.reindex(columns=self.model.feature_names_in_, fill_value=0)
+            print(input_data)
+            
+            # 预测
+            impact_value = self.model.predict(input_data)[0]
+            print(f"预测 '{event_name}' 对 '{attribute}' 的影响值: {impact_value:.2f}")
+            return impact_value
+        except Exception as e:
+            print(f"预测过程中出错: {e}")
+            messagebox.showerror("预测错误", f"预测过程中出错: {e}")
+            return 0
+
+    def open_event_window(self):
+        """打开事件输入窗口"""
+        event_window = tk.Toplevel(self.root)
+        event_window.title("事件输入")
+        event_window.geometry("400x350")
+        event_window.grab_set()  # 模态窗口
+        
+        # 创建事件输入界面
+        event_frame = ttk.Frame(event_window, padding=15)
+        event_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # 事件类型标签
+        ttk.Label(event_frame, text="事件类型:", font=self.subtitle_font).grid(row=0, column=0, sticky=tk.W, pady=(0, 10))
+        
+        # 使用下拉菜单选择事件类型
+        event_types = ["吃饭", "喝水", "锻炼", "休息", "社交", "学习", "冥想", "工作", 
+                      "看电影", "购物", "跑步", "阅读", "音乐会", "演讲", "绘画", "其他"]
+        event_type_var = tk.StringVar()
+        event_type_combobox = ttk.Combobox(event_frame, textvariable=event_type_var, values=event_types, font=self.text_font, width=28)
+        event_type_combobox.grid(row=0, column=1, sticky=tk.W, pady=(0, 10))
+        event_type_combobox.current(0)
+        
+        # 自定义事件输入框 - 必填
+        ttk.Label(event_frame, text="具体事件描述:", font=self.subtitle_font).grid(row=1, column=0, sticky=tk.W, pady=(0, 10))
+        event_name_entry = ttk.Entry(event_frame, width=30, font=self.text_font)
+        event_name_entry.grid(row=1, column=1, sticky=tk.W, pady=(0, 10))
+        
+        # 事件影响
+        ttk.Label(event_frame, text="影响属性:", font=self.subtitle_font).grid(row=2, column=0, sticky=tk.W, pady=(0, 10))
+        attr_combobox = ttk.Combobox(event_frame, values=list(self.attributes.keys()), font=self.text_font)
+        attr_combobox.grid(row=2, column=1, sticky=tk.W, pady=(0, 10))
+        if len(self.attributes) > 0:
+            attr_combobox.current(0)
+        
+        # 预测结果显示
+        ttk.Label(event_frame, text="预测影响值:", font=self.subtitle_font).grid(row=3, column=0, sticky=tk.W, pady=(0, 10))
+        impact_label = ttk.Label(event_frame, text="点击预测按钮", font=self.text_font)
+        impact_label.grid(row=3, column=1, sticky=tk.W, pady=(0, 10))
+        
+        # 检查输入有效性
+        def validate_input():
+            event_name = event_name_entry.get().strip()
+            attr = attr_combobox.get()
+            
+            if not event_name:
+                messagebox.showerror("输入错误", "请输入具体事件描述")
+                return False
+            
+            if not attr:
+                messagebox.showerror("输入错误", "请选择一个属性")
+                return False
+            
+            return True
+        
+        # 预测按钮
+        def predict_event_impact():
+            if not validate_input():
+                return
+            
+            # 获取事件名称和属性
+            event_name = event_name_entry.get().strip()
+            attr = attr_combobox.get()
+            
+            # 预测影响值
+            impact_value = self.predict_impact(event_name, attr)
+            impact_label.config(text=f"{impact_value:.2f}")
+        
+        ttk.Button(event_frame, text="预测影响", command=predict_event_impact).grid(row=4, column=0, pady=(10, 0))
+        
+        # 确认按钮
+        def apply_event():
+            if not validate_input():
+                return
+            
+            # 获取事件名称和属性
+            event_name = event_name_entry.get().strip()
+            attr = attr_combobox.get()
+            
+            try:
+                # 使用模型预测影响值
+                impact_value = self.predict_impact(event_name, attr)
+                
+                if attr in self.attributes:
+                    self.attributes[attr]["current_value"] += impact_value
+                    self.attributes[attr]["current_value"] = max(0, min(100, self.attributes[attr]["current_value"]))
+                    print(f"事件 '{event_name}' 已应用，{attr} 预测影响值: {impact_value:.2f}")
+                    messagebox.showinfo("事件应用", f"事件 '{event_name}' 已应用，{attr} 变化: {impact_value:.2f}")
+            except Exception as e:
+                print(f"应用事件时出错: {e}")
+                messagebox.showerror("应用事件错误", f"应用事件时出错: {e}")
+            
+            event_window.destroy()
+        
+        button_frame = ttk.Frame(event_frame)
+        button_frame.grid(row=5, column=0, columnspan=2, pady=(20, 0))
+        
+        ttk.Button(button_frame, text="应用事件", command=apply_event).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(button_frame, text="取消", command=event_window.destroy).pack(side=tk.LEFT)
     
     def update_panel(self):
         """更新面板数据"""
