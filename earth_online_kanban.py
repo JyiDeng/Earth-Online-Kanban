@@ -19,6 +19,8 @@ from scipy.stats import linregress
 import requests
 import xml.etree.ElementTree as ET
 from PIL import Image, ImageTk
+from modules.analytics import AnalyticsManager
+from modules.home_page import HomePage
 
 # 重定向stdout到窗口显示和文件
 class StdoutRedirector:
@@ -147,7 +149,7 @@ class AlertManager(BackgroundMixin):
             self.set_background(self.alert_window)
             
             # 居中显示窗口
-            self.center_window(self.alert_window, 400, 300)
+            self.center_window(self.alert_window, 400, 500)
             
             # 创建可滚动的文本框
             frame = ttk.Frame(self.alert_window, padding=10)
@@ -166,7 +168,7 @@ class AlertManager(BackgroundMixin):
             ttk.Button(frame, text="确定", command=self.alert_window.destroy).pack(pady=(0, 5))
             
             # 居中显示窗口
-            self.center_window(self.alert_window, 400, 300)
+            self.center_window(self.alert_window, 400, 500)
 
 class EarthOnlinePanel(BackgroundMixin):
     def __init__(self, root):
@@ -221,6 +223,9 @@ class EarthOnlinePanel(BackgroundMixin):
         # 添加警告管理器
         self.alert_manager = AlertManager()
         
+        # 添加分析管理器
+        self.analytics_manager = None
+        
         # 创建UI元素
         self.create_ui()
         
@@ -229,6 +234,9 @@ class EarthOnlinePanel(BackgroundMixin):
         
         # 加载历史数据
         self.load_history_data()
+        
+        # 初始化分析管理器
+        self.analytics_manager = AnalyticsManager(self.history_data)
         
         # 更新阈值提醒文本
         self.update_threshold_text()
@@ -249,7 +257,7 @@ class EarthOnlinePanel(BackgroundMixin):
             try:
                 with open(model_path, 'rb') as f:
                     self.model = pickle.load(f)
-                messagebox.showinfo("模型加载", "已成功加载训练模型")
+                # messagebox.showinfo("模型加载", "已成功加载训练模型")
             except Exception as e:
                 messagebox.showerror("模型加载错误", f"加载模型时出错: {e}")
         else:
@@ -430,6 +438,19 @@ class EarthOnlinePanel(BackgroundMixin):
         # 重定向标准输出到日志窗口
         self.stdout_redirector = StdoutRedirector(self.log_text)
         sys.stdout = self.stdout_redirector
+        
+        # 添加分析按钮
+        self.analyze_frame = ttk.Frame(self.control_frame)
+        self.analyze_frame.pack(side=tk.LEFT, padx=(10, 0))
+        
+        self.trend_button = ttk.Button(self.analyze_frame, text="趋势图", command=self.show_trend_charts, bootstyle="info")
+        self.trend_button.pack(side=tk.LEFT, padx=(0, 5))
+        
+        self.weekly_report_button = ttk.Button(self.analyze_frame, text="周报", command=self.generate_weekly_report, bootstyle="success")
+        self.weekly_report_button.pack(side=tk.LEFT, padx=(0, 5))
+        
+        self.monthly_report_button = ttk.Button(self.analyze_frame, text="月报", command=self.generate_monthly_report, bootstyle="warning")
+        self.monthly_report_button.pack(side=tk.LEFT)
     
     def train_and_save_model(self):
         """训练模型并保存"""
@@ -510,14 +531,41 @@ class EarthOnlinePanel(BackgroundMixin):
         # 设置背景图片
         self.set_background(setup_window)
         
-        # 居中显示窗口
-        self.center_window(setup_window, 600, 800)
+        # 居中显示窗口，增加高度到1000
+        self.center_window(setup_window, 600, 900)
         
         setup_window.grab_set()
         
+        # 创建主滚动框架
+        main_canvas = tk.Canvas(setup_window)
+        main_scrollbar = ttk.Scrollbar(setup_window, orient="vertical", command=main_canvas.yview)
+        
         # 创建设置界面
-        setup_frame = ttk.Frame(setup_window, padding=15)
-        setup_frame.pack(fill=tk.BOTH, expand=True)
+        setup_frame = ttk.Frame(main_canvas, padding=15)
+        
+        # 配置滚动区域
+        main_canvas.create_window((0, 0), window=setup_frame, anchor="nw", width=580)  # 设置固定宽度
+        setup_frame.bind("<Configure>", lambda e: main_canvas.configure(scrollregion=main_canvas.bbox("all")))
+        main_canvas.configure(yscrollcommand=main_scrollbar.set)
+        
+        # 布局主滚动框架
+        main_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 2))
+        main_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # 主题设置
+        theme_frame = ttk.Labelframe(setup_frame, text="主题设置", padding=10, bootstyle="info")
+        theme_frame.pack(fill=tk.X, pady=(0, 15))
+        
+        # 主题选择
+        theme_var = tk.StringVar(value=self.root.style.theme.name)
+        available_themes = ['cosmo', 'flatly', 'litera', 'minty', 'lumen', 'sandstone', 
+                          'yeti', 'pulse', 'united', 'morph', 'journal', 'darkly', 'superhero', 
+                          'solar', 'cyborg', 'vapor']
+        
+        ttk.Label(theme_frame, text="界面主题:", font=self.text_font).pack(side=tk.LEFT)
+        theme_combobox = ttk.Combobox(theme_frame, textvariable=theme_var, values=available_themes, 
+                                    font=self.text_font, width=20, state="readonly")
+        theme_combobox.pack(side=tk.LEFT, padx=5)
         
         # API设置
         api_frame = ttk.Labelframe(setup_frame, text="API设置", padding=10, bootstyle="info")
@@ -607,8 +655,25 @@ class EarthOnlinePanel(BackgroundMixin):
         canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
+        # 绑定鼠标滚轮事件
+        def on_mousewheel(event):
+            main_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        
+        main_canvas.bind_all("<MouseWheel>", on_mousewheel)
+        
         # 保存按钮
         def save_settings():
+            # 保存主题设置
+            new_theme = theme_var.get()
+            if new_theme != self.root.style.theme.name:
+                self.root.style.theme_use(new_theme)
+                # 保存主题设置到配置文件
+                try:
+                    with open("data/theme_config.json", "w", encoding="utf-8") as f:
+                        json.dump({"theme": new_theme}, f, ensure_ascii=False, indent=2)
+                except Exception as e:
+                    print(f"保存主题设置时出错: {e}")
+            
             # 保存API设置
             self.api_key = api_key_entry.get().strip()
             self.api_model = model_var.get()
@@ -629,6 +694,13 @@ class EarthOnlinePanel(BackgroundMixin):
         
         ttk.Button(button_frame, text="确认", command=save_settings, bootstyle="success").pack(side=tk.LEFT, padx=(0, 5))
         ttk.Button(button_frame, text="取消", command=setup_window.destroy, bootstyle="danger").pack(side=tk.LEFT)
+        
+        # 解绑鼠标滚轮事件（窗口关闭时）
+        def on_window_close():
+            main_canvas.unbind_all("<MouseWheel>")
+            setup_window.destroy()
+        
+        setup_window.protocol("WM_DELETE_WINDOW", on_window_close)
     
     def train_model(self):
         """训练机器学习模型以预测事件影响值"""
@@ -715,7 +787,7 @@ class EarthOnlinePanel(BackgroundMixin):
         self.set_background(event_window)
         
         # 居中显示窗口
-        self.center_window(event_window, 500, 350)
+        self.center_window(event_window, 500, 400)
         
         event_window.grab_set()
         
@@ -1570,15 +1642,227 @@ class EarthOnlinePanel(BackgroundMixin):
         finally:
             wait_window.destroy()
 
+    def show_trend_charts(self):
+        """显示趋势图窗口"""
+        window = ttk.Toplevel(self.root)
+        window.title("属性趋势分析")
+        
+        # 设置背景图片
+        self.set_background(window)
+        
+        # 居中显示窗口
+        self.center_window(window, 900, 600)
+        
+        # 创建主框架
+        main_frame = ttk.Frame(window, padding=10)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # 创建选项卡
+        notebook = ttk.Notebook(main_frame)
+        notebook.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+        
+        # 总览标签页
+        overview_frame = ttk.Frame(notebook)
+        notebook.add(overview_frame, text="总览")
+        
+        # 创建总览页的滚动区域
+        overview_canvas = tk.Canvas(overview_frame)
+        overview_scrollbar_y = ttk.Scrollbar(overview_frame, orient="vertical", command=overview_canvas.yview)
+        overview_scrollbar_x = ttk.Scrollbar(overview_frame, orient="horizontal", command=overview_canvas.xview)
+        overview_scrollable_frame = ttk.Frame(overview_canvas)
+        
+        overview_scrollable_frame.bind(
+            "<Configure>",
+            lambda e: overview_canvas.configure(scrollregion=overview_canvas.bbox("all"))
+        )
+        
+        overview_canvas.create_window((0, 0), window=overview_scrollable_frame, anchor="nw")
+        overview_canvas.configure(yscrollcommand=overview_scrollbar_y.set, xscrollcommand=overview_scrollbar_x.set)
+        
+        # 生成并显示总览图
+        overview_file = self.analytics_manager.generate_overview_chart()
+        overview_img = tk.PhotoImage(file=overview_file)
+        overview_label = ttk.Label(overview_scrollable_frame, image=overview_img)
+        overview_label.image = overview_img
+        overview_label.pack(pady=10, padx=10)
+        
+        # 布局总览页的滚动条
+        overview_scrollbar_y.pack(side=tk.RIGHT, fill=tk.Y)
+        overview_scrollbar_x.pack(side=tk.BOTTOM, fill=tk.X)
+        overview_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        # 分类标签页
+        for category, attrs in self.categories.items():
+            category_frame = ttk.Frame(notebook)
+            notebook.add(category_frame, text=category)
+            
+            # 创建双向滚动画布
+            canvas = tk.Canvas(category_frame)
+            scrollbar_y = ttk.Scrollbar(category_frame, orient="vertical", command=canvas.yview)
+            scrollbar_x = ttk.Scrollbar(category_frame, orient="horizontal", command=canvas.xview)
+            scrollable_frame = ttk.Frame(canvas)
+            
+            scrollable_frame.bind(
+                "<Configure>",
+                lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+            )
+            
+            canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+            canvas.configure(yscrollcommand=scrollbar_y.set, xscrollcommand=scrollbar_x.set)
+            
+            # 为每个属性生成趋势图
+            for attr in attrs:
+                # 创建属性框架
+                attr_frame = ttk.Labelframe(scrollable_frame, text=f"{self.icons.get(attr, '')} {attr}", padding=10)
+                attr_frame.pack(fill=tk.X, padx=5, pady=5)
+                
+                # 生成趋势图
+                chart_file = self.analytics_manager.generate_trend_chart(attr)
+                img = tk.PhotoImage(file=chart_file)
+                label = ttk.Label(attr_frame, image=img)
+                label.image = img
+                label.pack()
+            
+            # 布局滚动条和画布
+            scrollbar_y.pack(side=tk.RIGHT, fill=tk.Y)
+            scrollbar_x.pack(side=tk.BOTTOM, fill=tk.X)
+            canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+            
+            # 绑定鼠标滚轮事件
+            def on_mousewheel(event, canvas):
+                canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+            
+            canvas.bind_all("<MouseWheel>", lambda e, c=canvas: on_mousewheel(e, c))
+        
+        # 底部按钮
+        ttk.Button(main_frame, text="关闭", command=window.destroy, bootstyle="secondary").pack(pady=10)
+    
+    def generate_weekly_report(self):
+        """生成并显示周报"""
+        try:
+            report_file = self.analytics_manager.generate_weekly_report()
+            self.show_report(report_file, "周报")
+        except Exception as e:
+            messagebox.showerror("错误", f"生成周报时出错：{e}")
+    
+    def generate_monthly_report(self):
+        """生成并显示月报"""
+        try:
+            report_file = self.analytics_manager.generate_monthly_report()
+            self.show_report(report_file, "月报")
+        except Exception as e:
+            messagebox.showerror("错误", f"生成月报时出错：{e}")
+    
+    def show_report(self, report_file: str, report_type: str):
+        """显示报告窗口"""
+        window = ttk.Toplevel(self.root)
+        window.title(f"地球Online {report_type}")
+        
+        # 设置背景图片
+        self.set_background(window)
+        
+        # 居中显示窗口
+        self.center_window(window, 800, 600)
+        
+        # 创建主框架
+        main_frame = ttk.Frame(window, padding=10)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # 创建文本框
+        text = tk.Text(main_frame, wrap=tk.WORD, font=('Microsoft YaHei', 10))
+        text.pack(fill=tk.BOTH, expand=True)
+        
+        # 添加滚动条
+        scrollbar = ttk.Scrollbar(text)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        text.config(yscrollcommand=scrollbar.set)
+        scrollbar.config(command=text.yview)
+        
+        # 读取并显示报告内容
+        with open(report_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+            text.insert(tk.END, content)
+        
+        text.config(state=tk.DISABLED)  # 设置为只读
+        
+        # 底部按钮
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(fill=tk.X, pady=(10, 0))
+        
+        ttk.Button(button_frame, text="导出PDF", command=lambda: self.export_pdf(report_file), 
+                  bootstyle="primary").pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="关闭", command=window.destroy, 
+                  bootstyle="secondary").pack(side=tk.RIGHT, padx=5)
+    
+    def export_pdf(self, report_file: str):
+        """导出报告为PDF"""
+        return
+        try:
+            from reportlab.lib.pagesizes import A4
+            from reportlab.pdfgen import canvas
+            from reportlab.pdfbase import pdfmetrics
+            from reportlab.pdfbase.ttfonts import TTFont
+            
+            # 注册中文字体
+            pdfmetrics.registerFont(TTFont('Microsoft YaHei', 'msyh.ttc'))
+            
+            # 创建PDF文件
+            pdf_file = report_file.replace('.txt', '.pdf')
+            c = canvas.Canvas(pdf_file, pagesize=A4)
+            c.setFont('Microsoft YaHei', 12)
+            
+            # 读取报告内容
+            with open(report_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # 写入内容
+            y = 800  # 起始y坐标
+            for line in content.split('\n'):
+                if y < 50:  # 如果页面空间不足，创建新页面
+                    c.showPage()
+                    c.setFont('Microsoft YaHei', 12)
+                    y = 800
+                
+                c.drawString(50, y, line)
+                y -= 20  # 行间距
+            
+            c.save()
+            messagebox.showinfo("成功", f"报告已导出为PDF：{pdf_file}")
+            
+        except Exception as e:
+            messagebox.showerror("错误", f"导出PDF时出错：{e}")
+
 def main():
+    # 加载主题设置
+    theme = "darkly"  # 默认主题
+    try:
+        if os.path.exists("data/theme_config.json"):
+            with open("data/theme_config.json", "r", encoding="utf-8") as f:
+                config = json.load(f)
+                theme = config.get("theme", "darkly")
+    except Exception as e:
+        print(f"加载主题设置时出错: {e}")
+
     root = ttk.Window(
         title="地球Online看板",
-        themename="litera",  # 使用litera主题
-        size=(1000, 800),
-        minsize=(800, 700),
-        resizable=(True, True)
+        themename=theme,
+        size=(800, 600),
+        position=(100, 50),
+        minsize=(800, 600),
     )
-    app = EarthOnlinePanel(root)
+    
+    # 创建主页和看板实例
+    app = None
+    
+    def switch_to_kanban():
+        nonlocal app
+        root.geometry("1024x768")  # 调整窗口大小以适应看板
+        app = EarthOnlinePanel(root)
+    
+    # 创建主页，传入切换回调函数
+    home = HomePage(root, on_enter_callback=switch_to_kanban)
+    
     root.mainloop()
 
 if __name__ == "__main__":
