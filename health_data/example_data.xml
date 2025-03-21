@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE HealthData [
+<!-- HealthKit Export Version: 13 -->
+<!ELEMENT HealthData (ExportDate,Me,(Record|Correlation|Workout|ActivitySummary|ClinicalRecord|Audiogram|VisionPrescription)*)>
+<!ATTLIST HealthData
+  locale CDATA #REQUIRED
+>
+<!ELEMENT ExportDate EMPTY>
+<!ATTLIST ExportDate
+  value CDATA #REQUIRED
+>
+<!ELEMENT Me EMPTY>
+<!ATTLIST Me
+  HKCharacteristicTypeIdentifierDateOfBirth                   CDATA #REQUIRED
+  HKCharacteristicTypeIdentifierBiologicalSex                 CDATA #REQUIRED
+  HKCharacteristicTypeIdentifierBloodType                     CDATA #REQUIRED
+  HKCharacteristicTypeIdentifierFitzpatrickSkinType           CDATA #REQUIRED
+  HKCharacteristicTypeIdentifierCardioFitnessMedicationsUse   CDATA #REQUIRED
+>
+<!ELEMENT Record ((MetadataEntry|HeartRateVariabilityMetadataList)*)>
+<!ATTLIST Record
+  type          CDATA #REQUIRED
+  unit          CDATA #IMPLIED
+  value         CDATA #IMPLIED
+  sourceName    CDATA #REQUIRED
+  sourceVersion CDATA #IMPLIED
+  device        CDATA #IMPLIED
+  creationDate  CDATA #IMPLIED
+  startDate     CDATA #REQUIRED
+  endDate       CDATA #REQUIRED
+>
+<!-- Note: Any Records that appear as children of a correlation also appear as top-level records in this document. -->
+<!ELEMENT Correlation ((MetadataEntry|Record)*)>
+<!ATTLIST Correlation
+  type          CDATA #REQUIRED
+  sourceName    CDATA #REQUIRED
+  sourceVersion CDATA #IMPLIED
+  device        CDATA #IMPLIED
+  creationDate  CDATA #IMPLIED
+  startDate     CDATA #REQUIRED
+  endDate       CDATA #REQUIRED
+>
+<!ELEMENT Workout ((MetadataEntry|WorkoutEvent|WorkoutRoute|WorkoutStatistics)*)>
+<!ATTLIST Workout
+  workoutActivityType   CDATA #REQUIRED
+  duration              CDATA #IMPLIED
+  durationUnit          CDATA #IMPLIED
+  totalDistance         CDATA #IMPLIED
+  totalDistanceUnit     CDATA #IMPLIED
+  totalEnergyBurned     CDATA #IMPLIED
+  totalEnergyBurnedUnit CDATA #IMPLIED
+  sourceName            CDATA #REQUIRED
+  sourceVersion         CDATA #IMPLIED
+  device                CDATA #IMPLIED
+  creationDate          CDATA #IMPLIED
+  startDate             CDATA #REQUIRED
+  endDate               CDATA #REQUIRED
+>
+<!ELEMENT WorkoutActivity ((MetadataEntry)*)>
+<!ATTLIST WorkoutActivity
+  uuid                 CDATA #REQUIRED
+  startDate            CDATA #REQUIRED
+  endDate              CDATA #IMPLIED
+  duration             CDATA #IMPLIED
+  durationUnit         CDATA #IMPLIED
+>
+<!ELEMENT WorkoutEvent ((MetadataEntry)*)>
+<!ATTLIST WorkoutEvent
+  type                 CDATA #REQUIRED
+  date                 CDATA #REQUIRED
+  duration             CDATA #IMPLIED
+  durationUnit         CDATA #IMPLIED
+>
+<!ELEMENT WorkoutStatistics EMPTY>
+<!ATTLIST WorkoutStatistics
+  type                 CDATA #REQUIRED
+  startDate            CDATA #REQUIRED
+  endDate              CDATA #REQUIRED
+  average              CDATA #IMPLIED
+  minimum              CDATA #IMPLIED
+  maximum              CDATA #IMPLIED
+  sum                  CDATA #IMPLIED
+  unit                 CDATA #IMPLIED
+>
+<!ELEMENT WorkoutRoute ((MetadataEntry|FileReference)*)>
+<!ATTLIST WorkoutRoute
+  sourceName    CDATA #REQUIRED
+  sourceVersion CDATA #IMPLIED
+  device        CDATA #IMPLIED
+  creationDate  CDATA #IMPLIED
+  startDate     CDATA #REQUIRED
+  endDate       CDATA #REQUIRED
+>
+<!ELEMENT FileReference EMPTY>
+<!ATTLIST FileReference
+  path CDATA #REQUIRED
+>
+<!ELEMENT ActivitySummary EMPTY>
+<!ATTLIST ActivitySummary
+  dateComponents           CDATA #IMPLIED
+  activeEnergyBurned       CDATA #IMPLIED
+  activeEnergyBurnedGoal   CDATA #IMPLIED
+  activeEnergyBurnedUnit   CDATA #IMPLIED
+  appleMoveTime            CDATA #IMPLIED
+  appleMoveTimeGoal        CDATA #IMPLIED
+  appleExerciseTime        CDATA #IMPLIED
+  appleExerciseTimeGoal    CDATA #IMPLIED
+  appleStandHours          CDATA #IMPLIED
+  appleStandHoursGoal      CDATA #IMPLIED
+>
+<!ELEMENT MetadataEntry EMPTY>
+<!ATTLIST MetadataEntry
+  key   CDATA #REQUIRED
+  value CDATA #REQUIRED
+>
+<!-- Note: Heart Rate Variability records captured by Apple Watch may include an associated list of instantaneous beats-per-minute readings. -->
+<!ELEMENT HeartRateVariabilityMetadataList (InstantaneousBeatsPerMinute*)>
+<!ELEMENT InstantaneousBeatsPerMinute EMPTY>
+<!ATTLIST InstantaneousBeatsPerMinute
+  bpm  CDATA #REQUIRED
+  time CDATA #REQUIRED
+>
+<!ELEMENT ClinicalRecord EMPTY>
+<!ATTLIST ClinicalRecord
+  type              CDATA #REQUIRED
+  identifier        CDATA #REQUIRED
+  sourceName        CDATA #REQUIRED
+  sourceURL         CDATA #REQUIRED
+  fhirVersion       CDATA #REQUIRED
+  receivedDate      CDATA #REQUIRED
+  resourceFilePath  CDATA #REQUIRED
+>
+<!ELEMENT Audiogram ((MetadataEntry|SensitivityPoint)*)>
+<!ATTLIST Audiogram
+  type          CDATA #REQUIRED
+  sourceName    CDATA #REQUIRED
+  sourceVersion CDATA #IMPLIED
+  device        CDATA #IMPLIED
+  creationDate  CDATA #IMPLIED
+  startDate     CDATA #REQUIRED
+  endDate       CDATA #REQUIRED
+>
+<!ELEMENT SensitivityPoint EMPTY>
+<!ATTLIST SensitivityPoint
+  frequencyValue   CDATA #REQUIRED
+  frequencyUnit    CDATA #REQUIRED
+  leftEarValue     CDATA #IMPLIED
+  leftEarUnit      CDATA #IMPLIED
+  rightEarValue    CDATA #IMPLIED
+  rightEarUnit     CDATA #IMPLIED
+>
+<!ELEMENT VisionPrescription ((RightEye|LeftEye|Attachment|MetadataEntry)*)>
+<!ATTLIST VisionPrescription
+  type             CDATA #REQUIRED
+  dateIssued       CDATA #REQUIRED
+  expirationDate   CDATA #IMPLIED
+  brand            CDATA #IMPLIED
+>
+<!ELEMENT RightEye EMPTY>
+<!ATTLIST RightEye
+  sphere           CDATA #IMPLIED
+  sphereUnit       CDATA #IMPLIED
+  cylinder         CDATA #IMPLIED
+  cylinderUnit     CDATA #IMPLIED
+  axis             CDATA #IMPLIED
+  axisUnit         CDATA #IMPLIED
+  add              CDATA #IMPLIED
+  addUnit          CDATA #IMPLIED
+  vertex           CDATA #IMPLIED
+  vertexUnit       CDATA #IMPLIED
+  prismAmount      CDATA #IMPLIED
+  prismAmountUnit  CDATA #IMPLIED
+  prismAngle       CDATA #IMPLIED
+  prismAngleUnit   CDATA #IMPLIED
+  farPD            CDATA #IMPLIED
+  farPDUnit        CDATA #IMPLIED
+  nearPD           CDATA #IMPLIED
+  nearPDUnit       CDATA #IMPLIED
+  baseCurve        CDATA #IMPLIED
+  baseCurveUnit    CDATA #IMPLIED
+  diameter         CDATA #IMPLIED
+  diameterUnit     CDATA #IMPLIED
+>
+<!ELEMENT LeftEye EMPTY>
+<!ATTLIST LeftEye
+  sphere           CDATA #IMPLIED
+  sphereUnit       CDATA #IMPLIED
+  cylinder         CDATA #IMPLIED
+  cylinderUnit     CDATA #IMPLIED
+  axis             CDATA #IMPLIED
+  axisUnit         CDATA #IMPLIED
+  add              CDATA #IMPLIED
+  addUnit          CDATA #IMPLIED
+  vertex           CDATA #IMPLIED
+  vertexUnit       CDATA #IMPLIED
+  prismAmount      CDATA #IMPLIED
+  prismAmountUnit  CDATA #IMPLIED
+  prismAngle       CDATA #IMPLIED
+  prismAngleUnit   CDATA #IMPLIED
+  farPD            CDATA #IMPLIED
+  farPDUnit        CDATA #IMPLIED
+  nearPD           CDATA #IMPLIED
+  nearPDUnit       CDATA #IMPLIED
+  baseCurve        CDATA #IMPLIED
+  baseCurveUnit    CDATA #IMPLIED
+  diameter         CDATA #IMPLIED
+  diameterUnit     CDATA #IMPLIED
+>
+<!ELEMENT Attachment EMPTY>
+<!ATTLIST Attachment
+  identifier       CDATA #IMPLIED
+>
+]>
+<HealthData locale="en_CN">
+ <ExportDate value="2025-03-21 08:13:44 +0800"/>
+ <Me HKCharacteristicTypeIdentifierDateOfBirth="2000-01-01" HKCharacteristicTypeIdentifierBiologicalSex="HKBiologicalSexFemale" HKCharacteristicTypeIdentifierBloodType="HKBloodTypeNotSet" HKCharacteristicTypeIdentifierFitzpatrickSkinType="HKFitzpatrickSkinTypeNotSet" HKCharacteristicTypeIdentifierCardioFitnessMedicationsUse="None"/>
+ <Record type="HKQuantityTypeIdentifierDietaryWater" sourceName="柠檬喝水" sourceVersion="3041101" unit="mL" creationDate="2025-03-21 08:57:10 +0800" startDate="2025-03-21 08:57:10 +0800" endDate="2025-03-21 08:57:10 +0800" value="300"/>
+ <Record type="HKQuantityTypeIdentifierDietaryWater" sourceName="Plant Nanny" sourceVersion="3041101" unit="mL" creationDate="2025-03-21 10:10:52 +0800" startDate="2025-03-21 10:10:51 +0800" endDate="2025-03-21 10:10:51 +0800" value="110"/>
+ <Record type="HKQuantityTypeIdentifierHeartRate" sourceName="Apple Watch" sourceVersion="8.6" device="&lt;&lt;HKDevice: 0x3017700f0&gt;, name:Apple Watch, manufacturer:Apple Inc., model:Watch, hardware:Watch6,6, software:8.6&gt;" unit="count/min" creationDate="2025-03-21 06:51:28 +0800" startDate="2025-03-21 06:51:33 +0800" endDate="2025-03-21 06:51:33 +0800" value="70">
+  <MetadataEntry key="HKMetadataKeyHeartRateMotionContext" value="0"/>
+ </Record>
+ <Record type="HKQuantityTypeIdentifierHeartRate" sourceName="Apple Watch" sourceVersion="8.6" device="&lt;&lt;HKDevice: 0x3017700f0&gt;, name:Apple Watch, manufacturer:Apple Inc., model:Watch, hardware:Watch6,6, software:8.6&gt;" unit="count/min" creationDate="2025-03-21 06:55:02 +0800" startDate="2025-03-21 18:49:54 +0800" endDate="2025-03-21 06:49:54 +0800" value="64">
+  <MetadataEntry key="HKMetadataKeyHeartRateMotionContext" value="0"/>
+ </Record>
+ <Record type="HKQuantityTypeIdentifierDistanceWalkingRunning" sourceName="Apple Watch" sourceVersion="9.6.3" device="&lt;&lt;HKDevice: 0x3017a1220&gt;, name:Apple Watch, manufacturer:Apple Inc., model:Watch, hardware:Watch6,6, software:9.6.3&gt;" unit="km" creationDate="2025-01-01 17:31:32 +0800" startDate="2025-01-01 17:25:15 +0800" endDate="2025-01-01 17:25:45 +0800" value="0.0135877"/>
+ <Record type="HKQuantityTypeIdentifierBasalEnergyBurned" sourceName="Apple Watch" sourceVersion="8.7" device="&lt;&lt;HKDevice: 0x3017a6d50&gt;, name:Apple Watch, manufacturer:Apple Inc., model:Watch, hardware:Watch6,6, software:8.7&gt;" unit="kcal" creationDate="2025-02-21 07:54:07 +0800" startDate="2025-02-21 07:54:01 +0800" endDate="2025-02-21 07:54:04 +0800" value="0.054"/>
+ <Record type="HKQuantityTypeIdentifierEnvironmentalAudioExposure" sourceName="Apple Watch" sourceVersion="9.6.3" device="&lt;&lt;HKDevice: 0x3017a76b0&gt;, name:Apple Watch, manufacturer:Apple Inc., model:Watch, hardware:Watch6,6, software:9.6.3&gt;" unit="dBASPL" creationDate="2024-10-31 22:46:11 +0800" startDate="2024-10-31 22:41:26 +0800" endDate="2024-10-31 23:11:26 +0800" value="61.845"/>
+ <Record type="HKCategoryTypeIdentifierAppleStandHour" sourceName="Apple Watch" sourceVersion="9.6.3" device="&lt;&lt;HKDevice: 0x30177b480&gt;, name:Apple Watch, manufacturer:Apple Inc., model:Watch, hardware:Watch6,6, software:9.6.3&gt;" creationDate="2024-08-13 02:03:32 +0800" startDate="2024-08-13 01:00:00 +0800" endDate="2024-08-13 02:00:00 +0800" value="HKCategoryValueAppleStandHourIdle"/>
+ <Record type="HKQuantityTypeIdentifierStepCount" sourceName="jyiPhone" sourceVersion="15.5" device="&lt;&lt;HKDevice: 0x301711d10&gt;, name:iPhone, manufacturer:Apple Inc., model:iPhone, hardware:iPhone14,2, software:15.5&gt;" unit="count" creationDate="2022-08-08 21:26:12 +0800" startDate="2022-08-08 21:14:39 +0800" endDate="2022-08-08 21:24:39 +0800" value="227"/>
+ <Record type="HKQuantityTypeIdentifierDistanceWalkingRunning" sourceName="jyiPhone" sourceVersion="15.5" device="&lt;&lt;HKDevice: 0x3017703c0&gt;, name:iPhone, manufacturer:Apple Inc., model:iPhone, hardware:iPhone14,2, software:15.5&gt;" unit="km" creationDate="2022-08-08 21:26:12 +0800" startDate="2022-08-08 21:14:39 +0800" endDate="2022-08-08 21:24:39 +0800" value="0.16117"/>
+ <Record type="HKQuantityTypeIdentifierActiveEnergyBurned" sourceName="djy的Apple Watch" sourceVersion="8.6" device="&lt;&lt;HKDevice: 0x301770820&gt;, name:Apple Watch, manufacturer:Apple Inc., model:Watch, hardware:Watch6,6, software:8.6&gt;" unit="kcal" creationDate="2022-08-08 21:12:40 +0800" startDate="2022-08-08 21:12:16 +0800" endDate="2022-08-08 21:12:26 +0800" value="0.05"/>
+ <Record type="HKQuantityTypeIdentifierBodyMass" sourceName="Fasting" sourceVersion="162" unit="kg" creationDate="2025-03-12 20:48:19 +0800" startDate="2025-03-12 20:46:30 +0800" endDate="2023-03-12 20:46:30 +0800" value="60"/>
+ </HealthData>

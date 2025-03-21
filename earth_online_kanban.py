@@ -382,21 +382,41 @@ class EarthOnlinePanel(BackgroundMixin):
         self.ai_frame = ttk.Labelframe(self.analysis_frame, text="AI状态分析", bootstyle="info")
         self.ai_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 0))
         
+        # 创建按钮框架
+        ai_button_frame = ttk.Frame(self.ai_frame)
+        ai_button_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        self.analyze_ai_button = ttk.Button(ai_button_frame, text="AI分析当前状态", 
+                                          command=self.analyze_with_ai, bootstyle="info-outline")
+        self.analyze_ai_button.pack(side=tk.LEFT, padx=(0, 5))
+        
+        # 添加放大按钮
+        ttk.Button(ai_button_frame, text="放大查看", 
+                  command=lambda: self.show_enlarged_window("AI状态分析", self.ai_text.get(1.0, tk.END)),
+                  bootstyle="secondary-outline").pack(side=tk.LEFT)
+        
         self.ai_text = tk.Text(self.ai_frame, height=8, width=40, wrap=tk.WORD, font=('Microsoft YaHei', 10))
         self.ai_text.pack(fill=tk.BOTH, expand=True, pady=5, padx=5)
-        
-        self.analyze_ai_button = ttk.Button(self.ai_frame, text="AI分析当前状态", command=self.analyze_with_ai, bootstyle="info-outline")
-        self.analyze_ai_button.pack(pady=(0, 5))
         
         # 阈值提醒窗口
         self.threshold_frame = ttk.Labelframe(self.analysis_frame, text="阈值提醒设置", bootstyle="info")
         self.threshold_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(5, 0))
         
+        # 创建按钮框架
+        threshold_button_frame = ttk.Frame(self.threshold_frame)
+        threshold_button_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        self.threshold_button = ttk.Button(threshold_button_frame, text="设置阈值提醒", 
+                                         command=self.setup_thresholds, bootstyle="info-outline")
+        self.threshold_button.pack(side=tk.LEFT, padx=(0, 5))
+        
+        # 添加放大按钮
+        ttk.Button(threshold_button_frame, text="放大查看", 
+                  command=lambda: self.show_enlarged_window("阈值提醒设置", self.threshold_text.get(1.0, tk.END)),
+                  bootstyle="secondary-outline").pack(side=tk.LEFT)
+        
         self.threshold_text = tk.Text(self.threshold_frame, height=8, width=40, wrap=tk.WORD, font=('Microsoft YaHei', 10))
         self.threshold_text.pack(fill=tk.BOTH, expand=True, pady=5, padx=5)
-        
-        self.threshold_button = ttk.Button(self.threshold_frame, text="设置阈值提醒", command=self.setup_thresholds, bootstyle="info-outline")
-        self.threshold_button.pack(pady=(0, 5))
         
         # 创建底部控制栏
         self.control_frame = ttk.Frame(self.main_frame)
@@ -1037,17 +1057,17 @@ class EarthOnlinePanel(BackgroundMixin):
                     trend_text += "保持稳定"
                 elif trend > 0:
                     bootstyle = "success"
-                    trend_text += f"上升趋势 (+{trend:.2f}/min)"
+                    trend_text += f"上升趋势 (+{trend:.2f}/h)"
                 else:
                     bootstyle = "danger"
-                    trend_text += f"下降趋势 ({trend:.2f}/min)"
+                    trend_text += f"下降趋势 ({trend:.2f}/h)"
                 
                 # 显示趋势
                 ttk.Label(trend_scrollable_frame, text=trend_text, bootstyle=bootstyle).pack(pady=5, anchor="w")
                 
                 # 预测未来值
                 current_value = info["current_value"]
-                future_value = current_value + (trend * 30)  # 预测30分钟后的值
+                future_value = current_value + (trend * 0.5)  # 预测30分钟后的值
                 future_value = max(0, min(100, future_value))  # 确保值在0-100之间
                 prediction_text = f"{self.icons.get(attr, '')} {attr}: {future_value:.1f} (30分钟后)"
                 ttk.Label(prediction_scrollable_frame, text=prediction_text, bootstyle="info").pack(pady=5, anchor="w")
@@ -1079,66 +1099,87 @@ class EarthOnlinePanel(BackgroundMixin):
     
     def generate_ai_analysis(self, state):
         """使用AI生成分析结果"""
-        if not self.prompts.get("analysis"):
-            return "错误：未找到分析提示词配置"
-            
-        # 构建属性状态文本
-        attributes_text = ""
-        for attr, info in state["attributes"].items():
-            attributes_text += f"{attr}: {info['value']:.1f} (趋势: {info.get('trend', 0.0):.4f})\n"
-        
-        # 使用配置中的提示词模板
-        prompt = self.prompts["analysis"].format(
-            player_name=state["player_name"],
-            current_time=state["current_time"],
-            attributes=attributes_text
-        )
-        
-        # 创建等待提示窗口
-        wait_window = tk.Toplevel(self.root)
-        wait_window.title("请稍候")
-        
-        # 居中显示窗口
-        self.center_window(wait_window, 300, 100)
-        
-        wait_window.transient(self.root)
-        wait_window.grab_set()
-        
-        # 添加等待消息
-        ttk.Label(wait_window, text="正在生成分析结果，请耐心等待...", 
-                 font=self.text_font, wraplength=250).pack(pady=20)
-        
-        # 更新UI
-        self.root.update()
-        
         try:
-            # 调用API
-            response = self.call_deepseek_api(prompt)
+            # 构建属性状态文本
+            attributes_text = ""
+            for category, attrs in self.categories.items():
+                attributes_text += f"\n{category}:\n"
+                for attr in attrs:
+                    if attr in state["attributes"]:
+                        value = state["attributes"][attr]["value"]
+                        trend = state["attributes"][attr].get("trend", 0.0)
+                        attributes_text += f"  {attr}: {value:.1f} (趋势: {trend:.4f})\n"
             
-            # 关闭等待窗口
-            wait_window.destroy()
+            # 构建完整的提示词
+            prompt = f"""请作为一位专业的健康顾问，分析以下玩家状态数据，并直接输出JSON格式文件作为分析结果：
+
+玩家：{state["player_name"]}
+时间：{state["current_time"]}
+
+当前状态：{attributes_text}
+
+请从以下几个方面进行分析：
+1. 总体健康状况评估
+2. 需要注意的指标
+3. 改善建议
+4. 今日重点关注项
+
+请按照上述JSON格式输出分析结果，用通俗易懂的语言给出分析和建议。"""
             
-            if response:
-                # 保存AI回复到文件
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                output_file = os.path.join("outputs", f"ai_analysis_{timestamp}.txt")
-                try:
-                    with open(output_file, "w", encoding="utf-8") as f:
-                        f.write(f"时间: {state['current_time']}\n")
-                        f.write(f"玩家: {state['player_name']}\n\n")
-                        f.write("属性状态:\n")
-                        f.write(attributes_text)
-                        f.write("\nAI分析结果:\n")
-                        f.write(response)
-                    print(f"AI分析结果已保存到: {output_file}")
-                except Exception as e:
-                    print(f"保存AI分析结果时出错: {e}")
+            # 创建等待提示窗口
+            wait_window = tk.Toplevel(self.root)
+            wait_window.title("请稍候")
+            
+            # 居中显示窗口
+            self.center_window(wait_window, 300, 100)
+            
+            wait_window.transient(self.root)
+            wait_window.grab_set()
+            
+            # 添加等待消息
+            ttk.Label(wait_window, text="正在生成分析结果，请耐心等待...", 
+                     font=self.text_font, wraplength=250).pack(pady=20)
+            
+            # 添加进度条
+            progress = ttk.Progressbar(wait_window, mode='indeterminate')
+            progress.pack(fill=tk.X, padx=20)
+            progress.start()
+            
+            # 更新UI
+            self.root.update()
+            
+            try:
+                # 调用API
+                response = self.call_deepseek_api(prompt)
                 
-                return response
-            else:
-                return "API调用失败，请检查配置和网络连接"
+                # 关闭等待窗口
+                wait_window.destroy()
+                
+                if response:
+                    # 保存AI回复到文件
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    output_file = os.path.join("outputs", f"ai_analysis_{timestamp}.txt")
+                    try:
+                        with open(output_file, "w", encoding="utf-8") as f:
+                            f.write(f"时间: {state['current_time']}\n")
+                            f.write(f"玩家: {state['player_name']}\n\n")
+                            f.write("属性状态:\n")
+                            f.write(attributes_text)
+                            f.write("\nAI分析结果:\n")
+                            f.write(response)
+                        print(f"AI分析结果已保存到: {output_file}")
+                    except Exception as e:
+                        print(f"保存AI分析结果时出错: {e}")
+                    
+                    return response
+                else:
+                    return "API调用失败，请检查配置和网络连接"
+            except Exception as e:
+                wait_window.destroy()
+                return f"生成分析时出错: {str(e)}"
+                
         except Exception as e:
-            wait_window.destroy()
+            print(f"生成AI分析时出错: {e}")
             return f"生成分析时出错: {str(e)}"
     
     def setup_thresholds(self):
@@ -1487,10 +1528,13 @@ class EarthOnlinePanel(BackgroundMixin):
     def load_health_data(self):
         """加载并解析Apple健康数据"""
         try:
-            export_path = "WatchData/apple_health_export/export.xml"
+            export_path = "health_data/example_data.xml"
             if os.path.exists(export_path):
                 tree = ET.parse(export_path)
                 root = tree.getroot()
+                
+                # 获取今天的日期
+                today = datetime.now().strftime("%Y-%m-%d")
                 
                 # 初始化健康数据字典
                 self.health_data = {
@@ -1518,14 +1562,15 @@ class EarthOnlinePanel(BackgroundMixin):
                         if type not in type_mapping:
                             continue
                             
+                        date = record.get("startDate", "").split()[0]  # 只取日期部分
+                        # 只处理今天的数据
+                        if date != today:
+                            continue
+                            
                         # 尝试转换值为浮点数
                         try:
                             value = float(record.get("value", 0))
                         except (ValueError, TypeError):
-                            continue
-                            
-                        date = record.get("startDate")
-                        if not date:
                             continue
                             
                         # 将数据添加到对应类型的列表中
@@ -1536,7 +1581,7 @@ class EarthOnlinePanel(BackgroundMixin):
                         print(f"跳过一条无效记录: {e}")
                         continue
                 
-                print(f"健康数据加载成功，共处理：")
+                print(f"今日({today})健康数据加载成功，共处理：")
                 for data_type, data_list in self.health_data.items():
                     print(f"- {data_type}: {len(data_list)}条记录")
                     
@@ -1549,20 +1594,15 @@ class EarthOnlinePanel(BackgroundMixin):
     def update_attributes_from_health_data(self):
         """根据健康数据更新属性值"""
         try:
-            # 获取今天的数据
-            today = datetime.now().strftime("%Y-%m-%d")
-            
             # 更新步数相关属性
-            today_steps = sum(item["value"] for item in self.health_data["steps"] 
-                            if item["date"].startswith(today))
+            today_steps = sum(item["value"] for item in self.health_data["steps"])
             if today_steps > 0:
                 # 根据步数更新敏捷属性
                 agility_value = min(100, today_steps / 100)  # 10000步对应100分
                 self.attributes["敏捷"]["current_value"] = agility_value
             
             # 更新心率相关属性
-            today_heart_rates = [item["value"] for item in self.health_data["heart_rate"]
-                               if item["date"].startswith(today)]
+            today_heart_rates = [item["value"] for item in self.health_data["heart_rate"]]
             if today_heart_rates:
                 avg_heart_rate = sum(today_heart_rates) / len(today_heart_rates)
                 # 根据心率更新心脏健康度
@@ -1570,8 +1610,8 @@ class EarthOnlinePanel(BackgroundMixin):
                 self.attributes["心脏健康度"]["current_value"] = max(0, min(100, heart_health))
             
             # 更新体重相关属性
-            recent_weight = next((item["value"] for item in reversed(self.health_data["body_mass"])), None)
-            if recent_weight:
+            if self.health_data["body_mass"]:
+                recent_weight = self.health_data["body_mass"][-1]["value"]
                 # 根据体重计算BMI并更新瘦身指数
                 height = 1.7  # 默认身高，可以从设置中读取
                 bmi = recent_weight / (height * height)
@@ -1585,14 +1625,13 @@ class EarthOnlinePanel(BackgroundMixin):
                 self.attributes["瘦身指数"]["current_value"] = max(0, min(100, fitness_index))
             
             # 更新运动消耗相关属性
-            today_energy = sum(item["value"] for item in self.health_data["active_energy"]
-                             if item["date"].startswith(today))
+            today_energy = sum(item["value"] for item in self.health_data["active_energy"])
             if today_energy > 0:
                 # 根据消耗的卡路里更新肌肉强度
                 strength_value = min(100, today_energy / 30)  # 3000卡路里对应100分
                 self.attributes["肌肉强度"]["current_value"] = strength_value
             
-            print("属性值已根据健康数据更新")
+            print("属性值已根据今日健康数据更新")
             
         except Exception as e:
             print(f"更新属性值时出错: {e}")
@@ -1832,6 +1871,53 @@ class EarthOnlinePanel(BackgroundMixin):
             
         except Exception as e:
             messagebox.showerror("错误", f"导出PDF时出错：{e}")
+
+    def show_enlarged_window(self, title, content):
+        """显示放大窗口"""
+        window = ttk.Toplevel(self.root)
+        window.title(title)
+        
+        # 设置背景图片
+        self.set_background(window)
+        
+        # 设置窗口大小为屏幕的80%
+        screen_width = window.winfo_screenwidth()
+        screen_height = window.winfo_screenheight()
+        window_width = int(screen_width * 0.8)
+        window_height = int(screen_height * 0.8)
+        
+        # 居中显示窗口
+        self.center_window(window, window_width, window_height)
+        
+        # 创建主框架
+        main_frame = ttk.Frame(window, padding=15)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # 创建文本框
+        text = tk.Text(main_frame, wrap=tk.WORD, font=('Microsoft YaHei', 12))
+        text.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+        
+        # 添加滚动条
+        scrollbar = ttk.Scrollbar(text)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        text.config(yscrollcommand=scrollbar.set)
+        scrollbar.config(command=text.yview)
+        
+        # 插入内容
+        text.insert(tk.END, content)
+        text.config(state=tk.DISABLED)  # 设置为只读
+        
+        # 底部按钮
+        ttk.Button(main_frame, text="关闭", command=window.destroy, 
+                  bootstyle="secondary").pack(pady=(0, 5))
+        
+        # 将窗口提到前面
+        window.lift()
+        window.focus_force()
+        
+        # 绑定Esc键关闭窗口
+        window.bind('<Escape>', lambda e: window.destroy())
 
 def main():
     # 加载主题设置
