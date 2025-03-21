@@ -1,10 +1,10 @@
 # 🌍 地球Online 看板 Earth-Online Kanban
 
-![GitHub stars](https://img.shields.io/github/stars/JyiDeng/earth-online-kanban?style=social)
+<!-- ![GitHub stars](https://img.shields.io/github/stars/JyiDeng/earth-online-kanban?style=social) -->
 
 <i>【地球Online看板】系统已绑定，宿主您当前的属性值是.......</i>
 
-关键词： **自我监控** **健康管理** **动机激励** **智能穿戴集成**
+关键词： **自我监控** **健康管理** **动机激励** **智能穿戴集成** **数据分析** **AI助手**
 
 🌍 地球 Online 电脑桌面看板应用，可视化和跟踪【人类您】的日常生活中的各种属性状态，帮助你以游戏化的方式，更加量化地监控自己的生活状态。
 
@@ -13,20 +13,55 @@
 主页：
 
 <p align="center">
-  <img src="pic/Home.png" alt="地球Online主页截图" height="400">
+  <img src="pic/Home.png" alt="地球Online看板 主页截图" height="400">
 </p>
 
 看板：
 
 <p align="center">
-  <img src="pic/Kanban.png" alt="地球Online面板截图" height="400">
+  <img src="pic/Kanban.png" alt="地球Online看板 面板截图" height="400">
 </p>
+
+事件：
+
+<p align="center">
+  <img src="pic/event.png" alt="地球Online看板 事件界面截图" height="400">
+</p>
+
 
 设置界面：
 
 <p align="center">
-  <img src="pic/Settings.png" alt="地球Online设置界面截图" height="400">
+  <img src="pic/Settings.png" alt="地球Online看板 设置界面截图" height="400">
 </p>
+
+趋势文字描述：
+
+<p align="center">
+  <img src="pic/Trend_text.png" alt="地球Online看板 趋势文字描述界面截图" height="400">
+</p>
+
+趋势多维展示描述：
+
+<p align="center">
+  <img src="pic/Trend_multiple.png" alt="地球Online看板 趋势多维展示界面截图" height="400">
+</p>
+
+
+阈值提醒设置：
+
+<p align="center">
+  <img src="pic/Reminder.png" alt="地球Online看板 阈值提醒设置界面截图" height="400">
+</p>
+
+
+看板主题颜色设置后（还有许多主题可选）：
+
+<p align="center">
+  <img src="pic/Kanban_theme.png" alt="地球Online看板 看板主题颜色设置后界面截图" height="400">
+</p>
+
+
 
 ## 功能特点
 
@@ -42,6 +77,10 @@
 - **趋势分析**：自动分析属性变化趋势，预测未来状态
 - **阈值提醒**：当属性达到设定阈值时自动提醒
 - **定时任务**：支持设置定时提醒和检查点
+- **数据可视化**：支持生成周报和月报，包含详细的数据分析和图表
+- **PDF导出**：支持将报告导出为PDF格式
+- **系统日志**：自动记录系统运行日志，方便追踪和调试
+- **主题设置**：支持自定义界面主题和背景
 - 非常**轻量级**，只需要运行单个 python 文件
 - 本地运行，内容**安全**
 
@@ -114,10 +153,17 @@ earth_online_kanban/
 │   ├── config.py      # 配置管理
 │   ├── api.py         # API调用
 │   ├── logger.py      # 日志管理
+│   ├── analytics.py   # 数据分析
+│   ├── home_page.py   # 主页管理
 │   └── model.py       # 模型管理
 ├── data/              # 配置和数据文件
+│   ├── system_log.txt # 系统日志
+│   ├── thresholds.json # 阈值配置
+│   └── api_config.json # API配置
 ├── model/             # 模型文件
 ├── outputs/           # AI分析输出
+├── reports/           # 报告输出目录
+├── health_data/       # 健康数据处理目录
 └── WatchData/         # 健康数据目录
     └── apple_health_export/
         └── export.xml # 健康数据文件
@@ -134,6 +180,10 @@ earth_online_kanban/
 - [x] ✅ 定时任务 - 支持设置定时检查点
 - [x] ✅ 数据持久化 - 自动保存和加载数据
 - [x] ✅ 历史记录 - 记录属性变化历史
+- [x] ✅ 数据报告 - 支持生成周报和月报
+- [x] ✅ PDF导出 - 支持将报告导出为PDF格式
+- [x] ✅ 系统日志 - 自动记录系统运行状态
+- [x] ✅ 主题定制 - 支持自定义界面主题
 
 ## 待实现功能
 
@@ -144,7 +194,7 @@ earth_online_kanban/
 - [ ] 自定义属性 - 用户增加个性化属性大类、属性细则
 - [ ] 成就系统 - 达成特定条件获得成就
 - [ ] 任务系统 - 完成任务提升属性
-- [ ] 多人系统 - 可选择向他人展示部分属性
+- [ ] 多人系统 - 可选择向他人展示部分属性，以及 Web 3D 互动场景
 - [ ] 多样化主题 - 支持黑夜模式和其他配色
 
 ## 贡献指南
@@ -167,6 +217,7 @@ earth_online_kanban/
 - 灵感来源于生活游戏化和RPG游戏系统
 - 所有关于"地球Online"概念的有趣讨论、小说等
 - Apple Health Kit 提供的健康数据支持
+- 卓越杯辛勤付出的组员
 
 ## 联系方式
 
