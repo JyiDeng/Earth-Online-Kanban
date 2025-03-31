@@ -87,7 +87,8 @@ class HomePage:
         self.manual_text.configure(state="disabled")
         
         # 初始隐藏手册
-        self.manual_frame.pack_forget()
+        # self.manual_frame.pack_forget()
+        self.show_manual()
         
         # 设置窗口大小和位置
         self.center_window(800, 700)

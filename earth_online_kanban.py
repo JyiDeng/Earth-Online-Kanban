@@ -21,6 +21,8 @@ import xml.etree.ElementTree as ET
 from PIL import Image, ImageTk
 from modules.analytics import AnalyticsManager
 from modules.home_page import HomePage
+from metrics.metric_manager import MetricManager
+from sklearn.feature_extraction.text import TfidfVectorizer
 
 # 重定向stdout到窗口显示和文件
 class StdoutRedirector:
@@ -196,7 +198,7 @@ class EarthOnlinePanel(BackgroundMixin):
         self.last_save_time = time.time()
         
         # 更新间隔设置（秒）
-        self.update_interval = 30
+        self.update_interval = 300
         self.history_save_interval = 300  # 每5分钟保存历史数据
         
         # 初始化阈值设置
@@ -269,7 +271,7 @@ class EarthOnlinePanel(BackgroundMixin):
         try:
             with open(model_path, 'wb') as f:
                 pickle.dump(model, f)
-            messagebox.showinfo("模型保存", "模型已成功保存")
+            # messagebox.showinfo("模型保存", "模型已成功保存")
         except Exception as e:
             messagebox.showerror("模型保存错误", f"保存模型时出错: {e}")
     
@@ -307,9 +309,9 @@ class EarthOnlinePanel(BackgroundMixin):
         
         # 创建各个类别的列
         self.categories = {
-            "生理需求": ["饱腹", "口渴", "如厕", "瘦身指数", "心脏健康度"],
-            "社会需求": ["社交", "情绪", "成就感", "情商", "安全感"],
-            "能力属性": ["肌肉强度", "敏捷", "抗击打能力", "魅力", "道德"]
+            "生理需求": ["饱腹", "口渴", "如厕", "社交需求", "疲惫","卫生"],
+            "身心状况": ["瘦身指数", "幸福感", "成就感", "视疲劳","睡眠质量", "心脏健康度"],
+            "能力属性": ["肌肉强度", "敏捷", "抗击打能力", "时间掌控度","创造力","安全感"]
         }
         
         # 图标映射
@@ -319,16 +321,19 @@ class EarthOnlinePanel(BackgroundMixin):
             "如厕": "🚽",
             "瘦身指数": "⚖️",
             "心脏健康度": "🩷",
-            "社交": "👥",
-            "情绪": "😊",
+            "社交需求": "👥",
+            "幸福感": "😊",
             "成就感": "🏆",
-            "情商": "🧠",
-            "安全感": "💖",
+            "视疲劳": "👀",
+            "睡眠质量": "💤",
             "肌肉强度": "💪",
             "敏捷": "🏃",
             "抗击打能力": "🏠",
-            "魅力": "✨",
-            "道德": "⚖️"
+            "疲惫": "🥱",
+            "时间掌控度": "⏰",
+            "创造力": "💡",
+            "安全感": "🔒",
+            "卫生": "🧼"
         }
         
         # 创建三列布局
@@ -388,7 +393,7 @@ class EarthOnlinePanel(BackgroundMixin):
         
         self.analyze_ai_button = ttk.Button(ai_button_frame, text="AI分析当前状态", 
                                           command=self.analyze_with_ai, bootstyle="info-outline")
-        self.analyze_ai_button.pack(side=tk.LEFT, padx=(0, 5))
+        self.analyze_ai_button.pack(side=tk.LEFT, padx=(10, 10))
         
         # 添加放大按钮
         ttk.Button(ai_button_frame, text="放大查看", 
@@ -408,7 +413,7 @@ class EarthOnlinePanel(BackgroundMixin):
         
         self.threshold_button = ttk.Button(threshold_button_frame, text="设置阈值提醒", 
                                          command=self.setup_thresholds, bootstyle="info-outline")
-        self.threshold_button.pack(side=tk.LEFT, padx=(0, 5))
+        self.threshold_button.pack(side=tk.LEFT, padx=(10, 10))
         
         # 添加放大按钮
         ttk.Button(threshold_button_frame, text="放大查看", 
@@ -724,51 +729,102 @@ class EarthOnlinePanel(BackgroundMixin):
     
     def train_model(self):
         """训练机器学习模型以预测事件影响值"""
-        # 加载数据
-        data = pd.read_csv('model/event_data.csv')
-        
-        # 特征和目标
-        X = pd.get_dummies(data[['event_name', 'attribute']])
-        y = data['impact_value']
-        
-        # 拆分数据集
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-        
-        # 训练模型
-        model = LinearRegression()
-        model.fit(X_train, y_train)
-        
-        print(f"模型训练完成，特征数量: {len(model.feature_names_in_)}")
-        return model
+        try:
+            # 加载修正数据
+            correction_file = 'model/correction_data.csv'
+            if not os.path.exists(correction_file):
+                print("未找到修正数据文件")
+                return None
+                
+            # 读取修正数据
+            df = pd.read_csv(correction_file)
+            
+            # 创建特征
+            X = pd.DataFrame()
+            
+            # 添加事件类型特征
+            X = pd.concat([X, pd.get_dummies(df['event_type'])], axis=1)
+            
+            # 添加事件描述特征（使用TF-IDF）
+            vectorizer = TfidfVectorizer(max_features=50)
+            event_name_features = vectorizer.fit_transform(df['event_name'])
+            event_name_df = pd.DataFrame(event_name_features.toarray(), 
+                                       columns=[f'event_name_{i}' for i in range(event_name_features.shape[1])])
+            X = pd.concat([X, event_name_df], axis=1)
+            
+            # 添加持续时间特征
+            X['duration'] = df['duration']
+            
+            # 目标变量
+            y = df['corrected_value'] - df['predicted_value']  # 预测修正值
+            
+            # 拆分数据集
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+            
+            # 训练模型
+            model = LinearRegression()
+            model.fit(X_train, y_train)
+            
+            # 评估模型
+            train_score = model.score(X_train, y_train)
+            test_score = model.score(X_test, y_test)
+            print(f"模型训练完成:")
+            print(f"训练集 R² 分数: {train_score:.4f}")
+            print(f"测试集 R² 分数: {test_score:.4f}")
+            
+            # 保存模型和向量器
+            model_data = {
+                'model': model,
+                'vectorizer': vectorizer,
+                'feature_names': X.columns.tolist()
+            }
+            
+            return model_data
+            
+        except Exception as e:
+            print(f"训练模型时出错: {e}")
+            return None
 
-    def predict_impact(self, event_name, attribute):
+    def predict_impact(self, event_name, event_type, duration):
         """预测事件对属性的影响值"""
-        if self.model is None:
-            messagebox.showwarning("模型未加载", "请先训练模型")
+        if not hasattr(self, 'model_data') or self.model_data is None:
             print("模型未加载，无法预测")
-            return 0
-        
+            return None
+            
         try:
             # 创建输入数据
-            input_data = pd.DataFrame([[event_name, attribute]], columns=['event_name', 'attribute'])
-            input_data = pd.get_dummies(input_data)
+            X = pd.DataFrame()
             
-            # 确保输入数据与训练数据的特征一致
-            for col in self.model.feature_names_in_:
-                if col not in input_data:
-                    input_data[col] = 0
+            # 添加事件类型特征
+            event_type_dummies = pd.get_dummies(pd.Series([event_type]))
+            X = pd.concat([X, event_type_dummies], axis=1)
+            
+            # 添加事件描述特征
+            event_name_features = self.model_data['vectorizer'].transform([event_name])
+            event_name_df = pd.DataFrame(event_name_features.toarray(), 
+                                       columns=[f'event_name_{i}' for i in range(event_name_features.shape[1])])
+            X = pd.concat([X, event_name_df], axis=1)
+            
+            # 添加持续时间特征
+            X['duration'] = duration
+            
+            # 确保所有特征都存在
+            for col in self.model_data['feature_names']:
+                if col not in X:
+                    X[col] = 0
             
             # 重新排序列，确保与训练数据一致
-            input_data = input_data.reindex(columns=self.model.feature_names_in_, fill_value=0)
+            X = X.reindex(columns=self.model_data['feature_names'], fill_value=0)
             
-            # 预测
-            impact_value = self.model.predict(input_data)[0]
-            print(f"预测 '{event_name}' 对 '{attribute}' 的影响值: {impact_value:.2f}")
-            return impact_value
+            # 预测修正值
+            correction = self.model_data['model'].predict(X)[0]
+            
+            print(f"预测 '{event_name}' 的修正值: {correction:.2f}")
+            return correction
+            
         except Exception as e:
             print(f"预测过程中出错: {e}")
-            messagebox.showerror("预测错误", f"预测过程中出错: {e}")
-            return 0
+            return None
 
     def record_event_data(self, event_name, attribute, impact_value):
         """记录事件数据到CSV文件"""
@@ -807,7 +863,7 @@ class EarthOnlinePanel(BackgroundMixin):
         self.set_background(event_window)
         
         # 居中显示窗口
-        self.center_window(event_window, 500, 400)
+        self.center_window(event_window, 600, 800)  # 增加窗口高度
         
         event_window.grab_set()
         
@@ -819,93 +875,357 @@ class EarthOnlinePanel(BackgroundMixin):
         ttk.Label(event_frame, text="事件类型:", font=self.subtitle_font).grid(row=0, column=0, sticky=tk.W, pady=(0, 10))
         
         # 使用下拉菜单选择事件类型
-        event_types = ["吃饭", "喝水", "锻炼", "休息", "社交", "学习", "冥想", "工作", 
-                      "看电影", "购物", "跑步", "阅读", "音乐会", "演讲", "绘画", "其他"]
+        event_types = ["学习", "运动", "睡觉", "社交", "饮食", "娱乐", "工作", "休息","如厕","展览/讲座","复盘/冥想","洗漱/沐浴"]
         event_type_var = tk.StringVar()
         event_type_combobox = ttk.Combobox(event_frame, textvariable=event_type_var, values=event_types, font=self.text_font, width=28)
         event_type_combobox.grid(row=0, column=1, sticky=tk.W, pady=(0, 10))
         event_type_combobox.current(0)
         
-        # 自定义事件输入框 - 必填
-        ttk.Label(event_frame, text="具体事件描述:", font=self.subtitle_font).grid(row=1, column=0, sticky=tk.W, pady=(0, 10))
+        # 事件持续时间
+        ttk.Label(event_frame, text="持续时间(小时):", font=self.subtitle_font).grid(row=1, column=0, sticky=tk.W, pady=(0, 10))
+        duration_var = tk.StringVar(value="1.0")
+        duration_entry = ttk.Entry(event_frame, textvariable=duration_var, width=10, font=self.text_font)
+        duration_entry.grid(row=1, column=1, sticky=tk.W, pady=(0, 10))
+        
+        # 具体事件描述
+        ttk.Label(event_frame, text="具体事件描述:", font=self.subtitle_font).grid(row=2, column=0, sticky=tk.W, pady=(0, 10))
         event_name_entry = ttk.Entry(event_frame, width=30, font=self.text_font)
-        event_name_entry.grid(row=1, column=1, sticky=tk.W, pady=(0, 10))
+        event_name_entry.grid(row=2, column=1, sticky=tk.W, pady=(0, 10))
         
-        # 事件影响
-        ttk.Label(event_frame, text="影响属性:", font=self.subtitle_font).grid(row=2, column=0, sticky=tk.W, pady=(0, 10))
-        attr_combobox = ttk.Combobox(event_frame, values=list(self.attributes.keys()), font=self.text_font)
-        attr_combobox.grid(row=2, column=1, sticky=tk.W, pady=(0, 10))
-        if len(self.attributes) > 0:
-            attr_combobox.current(0)
+        # 预测结果显示区域
+        ttk.Label(event_frame, text="预测影响:", font=self.subtitle_font).grid(row=3, column=0, sticky=tk.W, pady=(0, 10))
+        prediction_frame = ttk.Frame(event_frame)
+        prediction_frame.grid(row=3, column=1, sticky=tk.W, pady=(0, 10))
         
-        # 预测结果显示
-        ttk.Label(event_frame, text="预测影响值:", font=self.subtitle_font).grid(row=3, column=0, sticky=tk.W, pady=(0, 10))
-        impact_label = ttk.Label(event_frame, text="点击预测按钮", font=self.text_font)
-        impact_label.grid(row=3, column=1, sticky=tk.W, pady=(0, 10))
+        # 创建预测结果的文本框
+        prediction_text = tk.Text(prediction_frame, height=8, width=40, wrap=tk.WORD, font=self.text_font)
+        prediction_text.pack(fill=tk.BOTH, expand=True)
         
-        # 检查输入有效性
-        def validate_input():
-            event_name = event_name_entry.get().strip()
-            attr = attr_combobox.get()
+        # 创建修正值输入区域
+        ttk.Label(event_frame, text="修正变化百分比:", font=self.subtitle_font).grid(row=4, column=0, sticky=tk.W, pady=(0, 10))
+        correction_frame = ttk.Frame(event_frame)
+        correction_frame.grid(row=4, column=1, sticky=tk.W, pady=(0, 10))
+        
+        # 创建修正值输入框的字典
+        correction_entries = {}
+        correction_frame.grid_columnconfigure(1, weight=1)
+        
+        # 定义事件与指标的关系
+        relationships = {
+            '学习': ['视疲劳', '睡眠质量', '社交需求', '疲惫', '成就感',"饱腹","时间掌控度"],
+            '运动': ['疲惫', '肌肉强度', '心脏健康度', '瘦身指数',"敏捷","抗击打能力" ,"肌肉强度", '安全感'],
+            '睡觉': ['视疲劳', '睡眠质量', '疲惫', '心脏健康度', '安全感'],
+            '社交': ['社交需求', '幸福感', '疲惫', '成就感'],
+            '饮食': ['饱腹', '口渴', '瘦身指数', '心脏健康度', '幸福感',"如厕"],
+            '娱乐': ['视疲劳', '幸福感', '社交需求', '疲惫', '成就感',"时间掌控度"],
+            '工作': ['视疲劳', '睡眠质量', '社交需求', '疲惫', '成就感',"创造力","时间掌控度"],
+            '休息': ['视疲劳', '睡眠质量', '疲惫', '心脏健康度', '幸福感'],
+            '如厕': ['如厕'],
+            '展览/讲座': [ '睡眠质量', '社交需求', '疲惫', '成就感',"创造力","时间掌控度"],
+            '复盘/冥想': [ '睡眠质量', '成就感', '安全感', '幸福感',"创造力","时间掌控度"],
+            '洗漱/沐浴': ['卫生', '视疲劳', '睡眠质量', '疲惫', '幸福感']
+        }
+        
+        # 定义影响系数
+        impact_coefficients = {
+    '学习': {
+        '视疲劳': -15,    # 每小时增加15%视疲劳
+        '睡眠质量': -10,  # 每小时降低10%睡眠质量
+        '社交需求': -20,  # 每小时增加20%社交需求
+        '疲惫': -25,      # 每小时增加25%疲惫
+        '成就感': 15,     # 每小时增加15%成就感
+        '时间掌控度': 10, # 每小时增加10%时间掌控度
+        '饱腹': -10      # 每小时降低10%饱腹感
+    },
+    '运动': {
+        '疲惫': -30,       # 每小时增加30%疲惫
+        '肌肉强度': 20,    # 每小时增加20%肌肉强度
+        '心脏健康度': 15,  # 每小时增加15%心脏健康度
+        '瘦身指数': 10,    # 每小时增加10%瘦身指数
+        '敏捷': 15,        # 每小时增加15%敏捷
+        '抗击打能力': 12,  # 每小时增加12%抗击打能力
+        '安全感': 8        # 每小时增加8%安全感
+    },
+    '睡觉': {
+        '视疲劳': 40,      # 每小时降低40%视疲劳
+        '睡眠质量': 50,    # 每小时增加50%睡眠质量
+        '疲惫': 45,        # 每小时降低45%疲惫
+        '心脏健康度': 20,  # 每小时增加20%心脏健康度
+        '安全感': 25       # 每小时增加25%安全感
+    },
+    '社交': {
+        '社交需求': 30,    # 每小时降低30%社交需求
+        '幸福感': 25,      # 每小时增加25%幸福感
+        '疲惫': -15,       # 每小时增加15%疲惫
+        '成就感': 10       # 每小时增加10%成就感
+    },
+    '饮食': {
+        '饱腹': 40,        # 每小时增加40%饱腹
+        '口渴': 30,        # 每小时降低30%口渴
+        '瘦身指数': -5,    # 每小时降低5%瘦身指数
+        '心脏健康度': 10,  # 每小时增加10%心脏健康度
+        '幸福感': 15,      # 每小时增加15%幸福感
+        '如厕': -20        # 每小时增加20%如厕需求
+    },
+    '娱乐': {
+        '视疲劳': -20,     # 每小时增加20%视疲劳
+        '幸福感': 30,      # 每小时增加30%幸福感
+        '社交需求': 5,   # 每小时增加15%社交需求
+        '疲惫': -25,       # 每小时增加25%疲惫
+        '成就感': 5,       # 每小时增加5%成就感
+        '时间掌控度': -10  # 每小时降低10%时间掌控度
+    },
+    '工作': {
+        '视疲劳': -20,     # 每小时增加20%视疲劳
+        '睡眠质量': -15,   # 每小时降低15%睡眠质量
+        '社交需求': -10,   # 每小时增加10%社交需求
+        '疲惫': -30,       # 每小时增加30%疲惫
+        '成就感': 25,      # 每小时增加25%成就感
+        '创造力': 15,      # 每小时增加15%创造力
+        '时间掌控度': 20   # 每小时增加20%时间掌控度
+    },
+    '休息': {
+        '视疲劳': 30,      # 每小时降低30%视疲劳
+        '睡眠质量': 20,    # 每小时增加20%睡眠质量
+        '疲惫': 35,        # 每小时降低35%疲惫
+        '心脏健康度': 15,  # 每小时增加15%心脏健康度
+        '幸福感': 25       # 每小时增加25%幸福感
+    },
+    '如厕': {
+        '如厕': 80         # 每小时降低80%如厕需求
+    },
+    '展览/讲座': {
+        '睡眠质量': -10,   # 每小时降低10%睡眠质量
+        '社交需求': -5,    # 每小时增加5%社交需求
+        '疲惫': -20,       # 每小时增加20%疲惫
+        '成就感': 20,      # 每小时增加20%成就感
+        '创造力': 25,      # 每小时增加25%创造力
+        '时间掌控度': 10   # 每小时增加10%时间掌控度
+    },
+    '复盘/冥想': {
+        '睡眠质量': 15,    # 每小时增加15%睡眠质量
+        '成就感': 20,      # 每小时增加20%成就感
+        '安全感': 25,      # 每小时增加25%安全感
+        '幸福感': 20,      # 每小时增加20%幸福感
+        '创造力': 15,      # 每小时增加15%创造力
+        '时间掌控度': 25   # 每小时增加25%时间掌控度
+    },
+    '洗漱/沐浴': {
+        '卫生': 50,        # 每小时增加50%卫生
+        '视疲劳': 10,      # 每小时降低10%视疲劳
+        '睡眠质量': 15,    # 每小时增加15%睡眠质量
+        '疲惫': 20,        # 每小时降低20%疲惫
+        '幸福感': 15       # 每小时增加15%幸福感
+    }
+}
+        
+        def load_event_suggestions():
+            """从JSON文件加载事件建议"""
+            try:
+                if os.path.exists("data/event_suggestions.json"):
+                    with open("data/event_suggestions.json", "r", encoding="utf-8") as f:
+                        return json.load(f)
+                return {
+                    "学习": ["阅读专业书籍", "在线课程学习", "编程练习", "写作训练"],
+                    "运动": ["跑步", "力量训练", "游泳", "瑜伽"],
+                    "睡觉": ["午休", "夜间睡眠", "小憩", "深度睡眠"],
+                    "社交": ["朋友聚会", "团队会议", "社交活动", "网络社交"],
+                    "饮食": ["健康饮食", "适量饮水", "定时进食", "均衡营养"],
+                    "娱乐": ["看电影", "听音乐", "玩游戏", "户外活动"],
+                    "工作": ["制定计划", "时间管理", "任务分解", "团队协作"],
+                    "休息": ["午休", "夜间睡眠", "小憩", "深度睡眠"]
+                }
+            except Exception as e:
+                print(f"加载事件建议时出错: {e}")
+                return {}
+        
+        def save_event_suggestions(suggestions):
+            """保存事件建议到JSON文件"""
+            try:
+                os.makedirs("data", exist_ok=True)
+                with open("data/event_suggestions.json", "w", encoding="utf-8") as f:
+                    json.dump(suggestions, f, ensure_ascii=False, indent=2)
+            except Exception as e:
+                print(f"保存事件建议时出错: {e}")
+        
+        def create_correction_entries(event_type):
+            """创建修正值输入框"""
+            # 清除现有的输入框
+            for widget in correction_frame.winfo_children():
+                widget.destroy()
             
-            if not event_name:
-                messagebox.showerror("输入错误", "请输入具体事件描述")
-                return False
-            
-            if not attr:
-                messagebox.showerror("输入错误", "请选择一个属性")
-                return False
-            
-            return True
+            # 创建新的输入框
+            correction_entries.clear()
+            for i, metric in enumerate(relationships[event_type]):
+                ttk.Label(correction_frame, text=f"{metric}:").grid(row=i, column=0, sticky=tk.W, pady=2)
+                entry = ttk.Entry(correction_frame, width=10)
+                entry.grid(row=i, column=1, sticky=tk.W, padx=5, pady=2)
+                ttk.Label(correction_frame, text="%").grid(row=i, column=2, sticky=tk.W, pady=2)
+                correction_entries[metric] = entry
         
-        # 预测按钮
-        def predict_event_impact():
-            if not validate_input():
+        def calculate_impact(event_type, duration, event_name):
+            """计算事件影响"""
+            try:
+                duration = float(duration)
+                if duration <= 0:
+                    raise ValueError("持续时间必须大于0")
+            except ValueError:
+                messagebox.showerror("输入错误", "请输入有效的持续时间")
                 return
             
-            # 获取事件名称和属性
-            event_name = event_name_entry.get().strip()
-            attr = attr_combobox.get()
+            # 获取当前值
+            current_values = {}
+            for metric in relationships[event_type]:
+                if metric in self.attributes:
+                    current_values[metric] = self.attributes[metric]["current_value"]
             
-            # 预测影响值
-            impact_value = self.predict_impact(event_name, attr)
-            impact_label.config(text=f"{impact_value:.2f}")
+            # 计算影响
+            new_values = current_values.copy()
+            for metric in relationships[event_type]:
+                if metric in impact_coefficients[event_type]:
+                    # 添加一些随机波动，使相同类型的不同具体事件有略微不同的影响
+                    random_factor = random.uniform(0.9, 1.1)
+                    impact = impact_coefficients[event_type][metric] * duration * random_factor
+                    new_values[metric] = max(0, min(100, current_values[metric] + impact))
+            
+            return new_values
+        
+        def update_prediction():
+            """更新预测结果"""
+            event_type = event_type_var.get()
+            duration = duration_var.get()
+            event_name = event_name_entry.get().strip()
+            
+            if not event_name:
+                messagebox.showwarning("警告", "请输入具体事件描述")
+                return
+            
+            # 计算影响
+            new_values = calculate_impact(event_type, duration, event_name)
+            
+            # 显示预测结果
+            prediction_text.delete(1.0, tk.END)
+            prediction_text.insert(tk.END, f"事件: {event_name}\n")
+            prediction_text.insert(tk.END, f"类型: {event_type}\n")
+            prediction_text.insert(tk.END, f"持续时间: {duration}小时\n\n")
+            prediction_text.insert(tk.END, "预测影响:\n")
+            
+            # 创建修正值输入框
+            create_correction_entries(event_type)
+            
+            for metric in relationships[event_type]:
+                if metric in self.attributes:
+                    current_value = self.attributes[metric]["current_value"]
+                    new_value = new_values[metric]
+                    change = new_value - current_value
+                    prediction_text.insert(tk.END, f"{metric}: {current_value:.1f} -> {new_value:.1f} (变化: {change:+.2f})\n")
+                    # 设置修正值输入框的默认值为预测的变化百分比
+                    correction_entries[metric].insert(0, f"{change:.1f}")
+        
+        def apply_event():
+            """应用事件影响"""
+            event_type = event_type_var.get()
+            duration = duration_var.get()
+            event_name = event_name_entry.get().strip()
+            
+            if not event_name:
+                messagebox.showwarning("警告", "请输入具体事件描述")
+                return
+            
+            # 获取修正后的变化百分比
+            correction_percentages = {}
+            for metric, entry in correction_entries.items():
+                try:
+                    percentage = float(entry.get())
+                    correction_percentages[metric] = percentage
+                except ValueError:
+                    messagebox.showerror("输入错误", f"{metric}的变化百分比必须是数字")
+                    return
+            
+            # 计算预测值
+            predicted_values = calculate_impact(event_type, duration, event_name)
+            
+            # 应用修正后的变化百分比
+            corrected_values = {}
+            for metric in relationships[event_type]:
+                if metric in self.attributes:
+                    current_value = self.attributes[metric]["current_value"]
+                    predicted_change = predicted_values[metric] - current_value
+                    correction_percentage = correction_percentages[metric]
+                    
+                    # 计算修正后的值
+                    corrected_change = predicted_change * (1 + correction_percentage / 100)
+                    corrected_values[metric] = max(0, min(100, current_value + corrected_change))
+            
+            # 检查是否有修正
+            has_corrections = False
+            for metric in relationships[event_type]:
+                if metric in corrected_values and metric in predicted_values:
+                    if abs(corrected_values[metric] - predicted_values[metric]) > 0.1:
+                        has_corrections = True
+                        break
+            
+            if has_corrections:
+                # 记录修正数据
+                self.record_correction_data(event_name, event_type, duration, predicted_values, corrected_values)
+                # messagebox.showinfo("提示", "已记录您的修正，这些数据将用于改进预测模型")
+            
+            # 更新属性值
+            for metric in relationships[event_type]:
+                if metric in self.attributes:
+                    self.attributes[metric]["current_value"] = corrected_values[metric]
+                    # 更新进度条
+                    percentage = int(corrected_values[metric])
+                    self.attributes[metric]["progress_bar"]["value"] = percentage
+                    self.attributes[metric]["value_label"].config(text=f"{percentage}%")
+                    # 更新进度条样式
+                    bootstyle = self.get_progress_style(percentage)
+                    self.attributes[metric]["progress_bar"].configure(bootstyle=bootstyle)
+            
+            # 保存新的事件描述
+            suggestions = load_event_suggestions()
+            if event_type not in suggestions:
+                suggestions[event_type] = []
+            if event_name not in suggestions[event_type]:
+                suggestions[event_type].append(event_name)
+                save_event_suggestions(suggestions)
+            
+            # 记录事件数据
+            self.record_event_data(event_name, event_type, duration)
+            
+            messagebox.showinfo("成功", "事件已应用")
+            event_window.destroy()
         
         # 创建按钮框架
         button_frame = ttk.Frame(event_frame)
-        button_frame.grid(row=4, column=0, columnspan=2, pady=(20, 0))
+        button_frame.grid(row=5, column=0, columnspan=2, pady=(20, 0))
         
         # 预测按钮
-        ttk.Button(button_frame, text="预测影响", command=predict_event_impact, bootstyle="info-outline").pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="预测影响", command=update_prediction, bootstyle="info-outline").pack(side=tk.LEFT, padx=5)
         
-        # 确认按钮
-        def apply_event():
-            if not validate_input():
-                return
-            
-            # 获取事件名称和属性
-            event_name = event_name_entry.get().strip()
-            attr = attr_combobox.get()
-            
-            try:
-                # 使用模型预测影响值
-                impact_value = self.predict_impact(event_name, attr)
-                
-                if attr in self.attributes:
-                    self.attributes[attr]["current_value"] += impact_value
-                    self.attributes[attr]["current_value"] = max(0, min(100, self.attributes[attr]["current_value"]))
-                    print(f"事件 '{event_name}' 已应用，{attr} 预测影响值: {impact_value:.2f}")
-                    messagebox.showinfo("事件应用", f"事件 '{event_name}' 已应用，{attr} 变化: {impact_value:.2f}")
-                    self.record_event_data(event_name, attr, impact_value)
-                    
-            except Exception as e:
-                print(f"应用事件时出错: {e}")
-                messagebox.showerror("应用事件错误", f"应用事件时出错: {e}")
-            
-            event_window.destroy()
-        
+        # 应用按钮
         ttk.Button(button_frame, text="应用事件", command=apply_event, bootstyle="success").pack(side=tk.LEFT, padx=5)
+        
+        # 取消按钮
         ttk.Button(button_frame, text="取消", command=event_window.destroy, bootstyle="danger").pack(side=tk.LEFT, padx=5)
+        
+        # 绑定事件类型变化事件
+        def on_event_type_change(event):
+            """当事件类型改变时，更新具体事件描述的建议"""
+            event_type = event_type_var.get()
+            suggestions = load_event_suggestions()
+            if event_type in suggestions:
+                event_name_entry.delete(0, tk.END)
+                event_name_entry.insert(0, random.choice(suggestions[event_type]))
+                # 清除预测结果和修正输入框
+                prediction_text.delete(1.0, tk.END)
+                for widget in correction_frame.winfo_children():
+                    widget.destroy()
+        
+        event_type_combobox.bind('<<ComboboxSelected>>', on_event_type_change)
+        
+        # 初始化具体事件描述
+        on_event_type_change(None)
     
     def load_history_data(self):
         """加载历史数据"""
@@ -1392,10 +1712,13 @@ class EarthOnlinePanel(BackgroundMixin):
         elapsed = now - self.last_update_time
         self.last_update_time = now
         
+        # 更新属性变化率
+        self.update_attribute_rates()
+        
         # 更新每个属性的值
         for attr, info in self.attributes.items():
             # 根据变化率更新属性值
-            delta = info["change_rate"] * elapsed * 10  # 乘以10使变化更加明显
+            delta = info["change_rate"] * elapsed * 1  # 乘以10使变化更加明显？？
             
             # 添加一些随机波动
             delta += random.uniform(-0.1, 0.1)
@@ -1433,32 +1756,39 @@ class EarthOnlinePanel(BackgroundMixin):
     
     def update_trends(self):
         """更新所有属性的趋势分析"""
+        # 使用MetricManager来更新趋势
+        if not hasattr(self, 'metric_manager'):
+            self.metric_manager = MetricManager()
+        
+        # 确保有足够的历史数据
         if len(self.history_data.get("timestamps", [])) < 5:
             return
         
-        for attr in self.attributes:
-            if attr in self.history_data["attributes"] and len(self.history_data["attributes"][attr]) >= 5:
-                # 获取历史数据
-                values = self.history_data["attributes"][attr]
-                
-                # 使用简单线性回归分析趋势
-                x = np.arange(len(values))
-                try:
-                    slope, intercept, r_value, p_value, std_err = linregress(x, values)
-                    
-                    # 保存趋势斜率
-                    self.attributes[attr]["trend"] = slope
-                    
-                    # 根据趋势自动调整变化率
-                    # 如果趋势明显，微调变化率以使其更接近期望趋势
-                    if abs(slope) > 0.05 and random.random() < 0.3:  # 30%的概率进行自动调整
-                        # 轻微调整当前变化率
-                        adjustment = slope * 0.01
-                        self.attributes[attr]["change_rate"] += adjustment
-                        print(f"自动调整 {attr} 变化率: {self.attributes[attr]['change_rate']:.4f} (趋势: {slope:.4f})")
-                
-                except Exception as e:
-                    print(f"更新 {attr} 趋势时出错: {e}")
+        # 使用指标管理器更新所有属性的趋势
+        self.metric_manager.update_trends(self.history_data, self.attributes)
+        
+        # 根据趋势自动调整变化率
+        for attr, info in self.attributes.items():
+            if "trend" in info and abs(info["trend"]) > 0.05 and random.random() < 0.3:  # 30%的概率进行自动调整
+                # 轻微调整当前变化率
+                adjustment = info["trend"] * 0.01
+                info["change_rate"] += adjustment
+                print(f"自动调整 {attr} 变化率: {info['change_rate']:.4f} (趋势: {info['trend']:.4f})")
+
+    def update_attributes_from_health_data(self):
+        """根据健康数据更新属性值"""
+        # 使用MetricManager来更新属性值
+        if not hasattr(self, 'metric_manager'):
+            self.metric_manager = MetricManager()
+        
+        try:
+            # 使用指标管理器更新所有属性的值
+            self.metric_manager.update_from_health_data(self.health_data, self.attributes)
+            
+            print("属性值已根据今日健康数据更新")
+            
+        except Exception as e:
+            print(f"更新属性值时出错: {e}")
 
     def load_api_config(self):
         """加载API配置"""
@@ -1506,7 +1836,7 @@ class EarthOnlinePanel(BackgroundMixin):
                 "model": self.api_model,
                 "messages": [{"role": "user", "content": prompt}],
                 "temperature": 0.7,
-                "max_tokens": 800
+                "max_tokens": 1500
             }
             
             response = requests.post(
@@ -1585,57 +1915,12 @@ class EarthOnlinePanel(BackgroundMixin):
                 for data_type, data_list in self.health_data.items():
                     print(f"- {data_type}: {len(data_list)}条记录")
                     
-                self.update_attributes_from_health_data()
+                # 不再直接调用更新方法，而是由sync_health_data调用
             else:
                 print("未找到健康数据文件")
         except Exception as e:
             print(f"加载健康数据时出错: {e}")
     
-    def update_attributes_from_health_data(self):
-        """根据健康数据更新属性值"""
-        try:
-            # 更新步数相关属性
-            today_steps = sum(item["value"] for item in self.health_data["steps"])
-            if today_steps > 0:
-                # 根据步数更新敏捷属性
-                agility_value = min(100, today_steps / 100)  # 10000步对应100分
-                self.attributes["敏捷"]["current_value"] = agility_value
-            
-            # 更新心率相关属性
-            today_heart_rates = [item["value"] for item in self.health_data["heart_rate"]]
-            if today_heart_rates:
-                avg_heart_rate = sum(today_heart_rates) / len(today_heart_rates)
-                # 根据心率更新心脏健康度
-                heart_health = 100 - abs(75 - avg_heart_rate)  # 假设75是最佳心率
-                self.attributes["心脏健康度"]["current_value"] = max(0, min(100, heart_health))
-            
-            # 更新体重相关属性
-            if self.health_data["body_mass"]:
-                recent_weight = self.health_data["body_mass"][-1]["value"]
-                # 根据体重计算BMI并更新瘦身指数
-                height = 1.7  # 默认身高，可以从设置中读取
-                bmi = recent_weight / (height * height)
-                # 瘦身指数计算逻辑：BMI越接近正常范围（18.5-24）分数越高
-                if bmi < 18.5:
-                    fitness_index = 100 - (18.5 - bmi) * 10
-                elif bmi > 24:
-                    fitness_index = 100 - (bmi - 24) * 10
-                else:
-                    fitness_index = 100
-                self.attributes["瘦身指数"]["current_value"] = max(0, min(100, fitness_index))
-            
-            # 更新运动消耗相关属性
-            today_energy = sum(item["value"] for item in self.health_data["active_energy"])
-            if today_energy > 0:
-                # 根据消耗的卡路里更新肌肉强度
-                strength_value = min(100, today_energy / 30)  # 3000卡路里对应100分
-                self.attributes["肌肉强度"]["current_value"] = strength_value
-            
-            print("属性值已根据今日健康数据更新")
-            
-        except Exception as e:
-            print(f"更新属性值时出错: {e}")
-
     def on_closing(self):
         """窗口关闭时的处理"""
         try:
@@ -1675,6 +1960,22 @@ class EarthOnlinePanel(BackgroundMixin):
         try:
             # 加载健康数据
             self.load_health_data()
+            
+            # 使用指标类更新属性
+            self.update_attributes_from_health_data()
+            
+            # 整合健康数据和事件预测
+            event_predictions = {}
+            for attr, info in self.attributes.items():
+                event_predictions[attr] = info.get("change_rate", 0)
+            
+            integrated_impacts = self.integrate_health_data(self.health_data, event_predictions)
+            
+            # 应用整合后的影响
+            for attr, impact in integrated_impacts.items():
+                if attr in self.attributes:
+                    self.attributes[attr]["change_rate"] = impact
+            
             messagebox.showinfo("成功", "健康数据同步完成")
         except Exception as e:
             messagebox.showerror("错误", f"同步健康数据时出错: {e}")
@@ -1884,7 +2185,7 @@ class EarthOnlinePanel(BackgroundMixin):
         screen_width = window.winfo_screenwidth()
         screen_height = window.winfo_screenheight()
         window_width = int(screen_width * 0.8)
-        window_height = int(screen_height * 0.8)
+        window_height = int(screen_height * 0.85)
         
         # 居中显示窗口
         self.center_window(window, window_width, window_height)
@@ -1919,6 +2220,168 @@ class EarthOnlinePanel(BackgroundMixin):
         # 绑定Esc键关闭窗口
         window.bind('<Escape>', lambda e: window.destroy())
 
+    def record_correction_data(self, event_name, event_type, duration, predicted_values, corrected_values):
+        """记录用户对预测值的修正数据"""
+        try:
+            # 确保model目录存在
+            os.makedirs("model", exist_ok=True)
+            
+            # 记录修正数据到CSV文件
+            correction_file = 'model/correction_data.csv'
+            file_exists = os.path.exists(correction_file)
+            
+            # 如果文件不存在，创建新文件并写入表头
+            if not file_exists:
+                with open(correction_file, 'w', newline='', encoding='utf-8') as f:
+                    writer = csv.writer(f)
+                    writer.writerow(['timestamp', 'event_name', 'event_type', 'duration', 
+                                   'metric', 'predicted_value', 'corrected_value'])
+            
+            # 追加修正数据
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            with open(correction_file, 'a', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                for metric in predicted_values:
+                    if metric in corrected_values:
+                        writer.writerow([
+                            timestamp,
+                            event_name,
+                            event_type,
+                            duration,
+                            metric,
+                            predicted_values[metric],
+                            corrected_values[metric]
+                        ])
+            
+            print(f"已记录修正数据: {event_name}, {event_type}, {duration}")
+            
+            # 检查是否需要重新训练模型
+            self.check_and_retrain_model()
+            
+        except Exception as e:
+            print(f"记录修正数据时出错: {e}")
+    
+    def check_and_retrain_model(self):
+        """检查是否需要重新训练模型"""
+        try:
+            correction_file = 'model/correction_data.csv'
+            if not os.path.exists(correction_file):
+                return
+            
+            # 读取修正数据
+            df = pd.read_csv(correction_file)
+            
+            # 如果修正数据超过10条，重新训练模型
+            if len(df) >= 10:
+                print("检测到足够的修正数据，开始重新训练模型...")
+                self.train_and_save_model()
+                print("模型重新训练完成")
+            
+        except Exception as e:
+            print(f"检查是否需要重新训练模型时出错: {e}")
+
+    def update_attribute_rates(self):
+        """更新各属性的变化率"""
+        attribute_configs = {
+            '饱腹': {
+                'base_decay': -0.05,     # 基础衰减率
+                'threshold': 20,         # 触发加速衰减的阈值
+                'accelerated_decay': -0.1 # 加速衰减率
+            },
+            '口渴': {
+                'base_decay': -0.08,
+                'threshold': 30,
+                'accelerated_decay': -0.15
+            },
+            '如厕': {
+                'base_decay': -0.03,
+                'threshold': 25,
+                'accelerated_decay': -0.12
+            },
+            '疲惫': {
+                'base_decay': -0.02,
+                'threshold': 70,
+                'accelerated_decay': -0.08
+            },
+            '视疲劳': {
+                'base_decay': -0.03,
+                'threshold': 75,
+                'accelerated_decay': -0.1
+            },
+            '睡眠质量': {
+                'base_decay': -0.04,
+                'threshold': 30,
+                'accelerated_decay': -0.08
+            },
+            '社交需求': {
+                'base_decay': -0.02,
+                'threshold': 40,
+                'accelerated_decay': -0.05
+            }
+        }
+
+        for attr, config in attribute_configs.items():
+            if attr in self.attributes:
+                current_value = self.attributes[attr]['current_value']
+                if current_value < config['threshold']:
+                    # 低于阈值时使用加速衰减率
+                    self.attributes[attr]['change_rate'] = config['accelerated_decay']
+                else:
+                    # 正常情况下使用基础衰减率
+                    self.attributes[attr]['change_rate'] = config['base_decay']
+
+    def integrate_health_data(self, health_data, event_predictions):
+        """整合健康数据和事件预测"""
+        integrated_impacts = {}
+        
+        # 健康数据权重映射
+        health_weights = {
+            'steps': {
+                '疲惫': -0.3,
+                '心脏健康度': 0.4,
+                '肌肉强度': 0.2
+            },
+            'heart_rate': {
+                '心脏健康度': 0.5,
+                '疲惫': -0.2
+            },
+            'active_energy': {
+                '瘦身指数': 0.4,
+                '疲惫': -0.3,
+                '心脏健康度': 0.3
+            },
+            'body_mass': {
+                '瘦身指数': -0.5
+            }
+        }
+        # 计算健康数据的影响
+        for metric, data in health_data.items():
+            if metric in health_weights:
+                for attr, weight in health_weights[metric].items():
+                    if attr not in integrated_impacts:
+                        integrated_impacts[attr] = 0
+                    
+                    # 根据健康数据计算影响值
+                    avg_value = sum(d['value'] for d in data) / len(data) if data else 0
+                    impact = avg_value * weight
+                    integrated_impacts[attr] += impact
+
+        # 结合事件预测
+        for attr, predicted_impact in event_predictions.items():
+            if attr not in integrated_impacts:
+                integrated_impacts[attr] = predicted_impact
+            else:
+                # 使用加权平均合并影响
+                health_weight = 0.4  # 健康数据权重
+                prediction_weight = 0.6  # 事件预测权重
+                integrated_impacts[attr] = (
+                    integrated_impacts[attr] * health_weight + 
+                    predicted_impact * prediction_weight
+                )
+
+        return integrated_impacts
+
+
 def main():
     # 加载主题设置
     theme = "darkly"  # 默认主题
@@ -1933,9 +2396,9 @@ def main():
     root = ttk.Window(
         title="地球Online看板",
         themename=theme,
-        size=(800, 600),
-        position=(100, 50),
-        minsize=(800, 600),
+        size=(800, 700),
+        position=(0, 0),
+        minsize=(800, 700),
     )
     
     # 创建主页和看板实例
@@ -1943,7 +2406,18 @@ def main():
     
     def switch_to_kanban():
         nonlocal app
-        root.geometry("1024x768")  # 调整窗口大小以适应看板
+        # 调整窗口大小以适应看板
+        root.geometry("1024x850")
+        # 更新窗口位置到屏幕中央
+        root.update()
+        screen_width = root.winfo_screenwidth()
+        screen_height = root.winfo_screenheight()
+        window_width = 1024
+        window_height = 850
+        x = (screen_width - window_width) // 2
+        y = (screen_height - window_height) // 2
+        root.geometry(f"{window_width}x{window_height}+{x}+{y}")
+        # 创建看板实例
         app = EarthOnlinePanel(root)
     
     # 创建主页，传入切换回调函数
