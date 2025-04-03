@@ -7,7 +7,7 @@ import json
 import time
 import math
 import random
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 import pandas as pd
 import pickle
@@ -23,6 +23,63 @@ from modules.analytics import AnalyticsManager
 from modules.home_page import HomePage
 from metrics.metric_manager import MetricManager
 from sklearn.feature_extraction.text import TfidfVectorizer
+import threading
+from RealtimeSTT import AudioToTextRecorder
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.figure import Figure
+
+class SpeechRecognitionManager:
+    def __init__(self):
+        self.recorder = None
+        self.is_initialized = False
+        self.initialization_thread = None
+        self.lock = threading.Lock()
+        
+    def initialize(self):
+        """在后台初始化语音识别系统"""
+        def init_recorder():
+            try:
+                with self.lock:
+                    self.recorder = AudioToTextRecorder(
+                        language="zh",
+                        compute_type="float32"
+                    )
+                    self.is_initialized = True
+                    print("语音识别系统初始化完成")
+            except Exception as e:
+                print(f"语音识别系统初始化失败: {e}")
+        
+        self.initialization_thread = threading.Thread(target=init_recorder)
+        self.initialization_thread.daemon = True
+        self.initialization_thread.start()
+    
+    def record_and_transcribe(self, duration=5):
+        """录制并转录音频"""
+        if not self.is_initialized:
+            return "语音识别系统正在初始化，请稍后再试..."
+            
+        try:
+            with self.lock:
+                if not self.recorder:
+                    return "语音识别系统未初始化"
+                    
+                # 开始录音
+                self.recorder.start()
+                start_time = time.time()
+                
+                # 等待指定时间
+                while time.time() - start_time < duration:
+                    if self.recorder.text(lambda text: False):  # 只用于保持录音
+                        pass
+                
+                # 停止录音并获取文本
+                self.recorder.stop()
+                result = self.recorder.transcribe()
+                return result
+                
+        except Exception as e:
+            return f"录音失败: {str(e)}"
 
 # 重定向stdout到窗口显示和文件
 class StdoutRedirector:
@@ -251,6 +308,10 @@ class EarthOnlinePanel(BackgroundMixin):
         
         # 在关闭窗口时保存数据
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+        
+        # 初始化语音识别管理器
+        self.speech_manager = SpeechRecognitionManager()
+        self.speech_manager.initialize()  # 在后台开始初始化
     
     def load_model(self):
         """加载已训练的模型"""
@@ -877,7 +938,7 @@ class EarthOnlinePanel(BackgroundMixin):
         # 使用下拉菜单选择事件类型
         event_types = ["学习", "运动", "睡觉", "社交", "饮食", "娱乐", "工作", "休息","如厕","展览/讲座","复盘/冥想","洗漱/沐浴"]
         event_type_var = tk.StringVar()
-        event_type_combobox = ttk.Combobox(event_frame, textvariable=event_type_var, values=event_types, font=self.text_font, width=28)
+        event_type_combobox = ttk.Combobox(event_frame, textvariable=event_type_var, values=event_types, font=self.text_font, width=30)
         event_type_combobox.grid(row=0, column=1, sticky=tk.W, pady=(0, 10))
         event_type_combobox.current(0)
         
@@ -889,16 +950,16 @@ class EarthOnlinePanel(BackgroundMixin):
         
         # 具体事件描述
         ttk.Label(event_frame, text="具体事件描述:", font=self.subtitle_font).grid(row=2, column=0, sticky=tk.W, pady=(0, 10))
-        event_name_entry = ttk.Entry(event_frame, width=30, font=self.text_font)
-        event_name_entry.grid(row=2, column=1, sticky=tk.W, pady=(0, 10))
+        self.event_name_entry = ttk.Entry(event_frame, width=30, font=self.text_font)
+        self.event_name_entry.grid(row=2, column=1, sticky=tk.W, pady=(0, 10))
         
         # 预测结果显示区域
         ttk.Label(event_frame, text="预测影响:", font=self.subtitle_font).grid(row=3, column=0, sticky=tk.W, pady=(0, 10))
         prediction_frame = ttk.Frame(event_frame)
         prediction_frame.grid(row=3, column=1, sticky=tk.W, pady=(0, 10))
         
-        # 创建预测结果的文本框
-        prediction_text = tk.Text(prediction_frame, height=8, width=40, wrap=tk.WORD, font=self.text_font)
+        # 创建预测结果的文本框，宽度与具体事件描述一致
+        prediction_text = tk.Text(prediction_frame, height=12, width=30, wrap=tk.WORD, font=self.text_font)
         prediction_text.pack(fill=tk.BOTH, expand=True)
         
         # 创建修正值输入区域
@@ -1094,7 +1155,7 @@ class EarthOnlinePanel(BackgroundMixin):
             """更新预测结果"""
             event_type = event_type_var.get()
             duration = duration_var.get()
-            event_name = event_name_entry.get().strip()
+            event_name = self.event_name_entry.get().strip()
             
             if not event_name:
                 messagebox.showwarning("警告", "请输入具体事件描述")
@@ -1126,7 +1187,7 @@ class EarthOnlinePanel(BackgroundMixin):
             """应用事件影响"""
             event_type = event_type_var.get()
             duration = duration_var.get()
-            event_name = event_name_entry.get().strip()
+            event_name = self.event_name_entry.get().strip()
             
             if not event_name:
                 messagebox.showwarning("警告", "请输入具体事件描述")
@@ -1215,8 +1276,8 @@ class EarthOnlinePanel(BackgroundMixin):
             event_type = event_type_var.get()
             suggestions = load_event_suggestions()
             if event_type in suggestions:
-                event_name_entry.delete(0, tk.END)
-                event_name_entry.insert(0, random.choice(suggestions[event_type]))
+                self.event_name_entry.delete(0, tk.END)
+                self.event_name_entry.insert(0, random.choice(suggestions[event_type]))
                 # 清除预测结果和修正输入框
                 prediction_text.delete(1.0, tk.END)
                 for widget in correction_frame.winfo_children():
@@ -1226,6 +1287,23 @@ class EarthOnlinePanel(BackgroundMixin):
         
         # 初始化具体事件描述
         on_event_type_change(None)
+        
+        # 在具体事件描述后面添加麦克风按钮
+        mic_button = ttk.Button(event_frame, text="🎤", command=self.record_speech)
+        mic_button.grid(row=2, column=2, sticky=tk.W, pady=(0, 10))
+    
+    def record_speech(self):
+        """处理语音录制"""
+        def update_text(text):
+            self.event_name_entry.delete(0, tk.END)
+            self.event_name_entry.insert(0, text)
+        
+        def recording_thread():
+            result = self.speech_manager.record_and_transcribe(duration=5)
+            self.root.after(0, update_text, result)
+        
+        # 在新线程中执行录音
+        threading.Thread(target=recording_thread, daemon=True).start()
     
     def load_history_data(self):
         """加载历史数据"""
@@ -1923,14 +2001,19 @@ class EarthOnlinePanel(BackgroundMixin):
     
     def on_closing(self):
         """窗口关闭时的处理"""
-        try:
-            self.save_data()
-            print("应用关闭前数据已保存")
-        except Exception as e:
-            print(f"保存数据时出错: {e}")
+        # 保存数据
+        self.save_data()
         
-        if hasattr(sys.stdout, 'close'):
-            sys.stdout.close()
+        # 关闭语音识别系统
+        if hasattr(self, 'speech_manager') and self.speech_manager:
+            try:
+                if self.speech_manager.recorder:
+                    self.speech_manager.recorder.shutdown()
+                print("语音识别系统已关闭")
+            except Exception as e:
+                print(f"关闭语音识别系统时出错: {e}")
+        
+        # 关闭窗口
         self.root.destroy()
 
     def sync_health_data(self):
@@ -2426,4 +2509,6 @@ def main():
     root.mainloop()
 
 if __name__ == "__main__":
+    print("Earth Online看板启动成功！")
+    print("语音识别功能启动较缓慢，启动完毕后会在看板提示框上显示！")
     main() 
