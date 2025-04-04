@@ -28,6 +28,13 @@ let healthData = {
     }
 };
 
+let settings = {
+    syncInterval: 5,
+    alertThreshold: 30
+};
+
+let thresholds = {};
+
 // 工具函数
 function showLoading(button) {
     const originalText = button.textContent;
@@ -65,6 +72,7 @@ async function loadHealthData() {
         const data = await apiService.getHealthData();
         healthData = data;
         updateUI();
+        checkThresholds();
     } catch (error) {
         console.error('加载健康数据失败:', error);
         showAnalysisResult({ message: '加载健康数据失败，请检查网络连接' });
@@ -76,7 +84,7 @@ function updateUI() {
     Object.entries(healthData.physiological).forEach(([key, value]) => {
         const element = document.querySelector(`.physiological .metric[data-type="${key}"]`);
         if (element) {
-            element.querySelector('.value').textContent = `${value}%`;
+            element.querySelector('.value').textContent = `${Math.round(value)}%`;
             element.querySelector('progress').value = value;
         }
     });
@@ -85,7 +93,7 @@ function updateUI() {
     Object.entries(healthData.mental).forEach(([key, value]) => {
         const element = document.querySelector(`.mental .metric[data-type="${key}"]`);
         if (element) {
-            element.querySelector('.value').textContent = `${value}%`;
+            element.querySelector('.value').textContent = `${Math.round(value)}%`;
             element.querySelector('progress').value = value;
         }
     });
@@ -94,12 +102,71 @@ function updateUI() {
     Object.entries(healthData.ability).forEach(([key, value]) => {
         const element = document.querySelector(`.ability .metric[data-type="${key}"]`);
         if (element) {
-            element.querySelector('.value').textContent = `${value}%`;
+            element.querySelector('.value').textContent = `${Math.round(value)}%`;
             element.querySelector('progress').value = value;
         }
     });
 
     updateProgressColors();
+}
+
+// 阈值检查
+async function checkThresholds() {
+    try {
+        const currentThresholds = await apiService.getThresholds();
+        thresholds = currentThresholds;
+
+        // 检查每个指标是否低于阈值
+        Object.entries(healthData.physiological).forEach(([key, value]) => {
+            if (value < (thresholds[key] || 30)) {
+                showAnalysisResult({
+                    message: `警告：${getMetricLabel(key)}低于阈值！当前值：${Math.round(value)}%`
+                });
+            }
+        });
+
+        Object.entries(healthData.mental).forEach(([key, value]) => {
+            if (value < (thresholds[key] || 30)) {
+                showAnalysisResult({
+                    message: `警告：${getMetricLabel(key)}低于阈值！当前值：${Math.round(value)}%`
+                });
+            }
+        });
+
+        Object.entries(healthData.ability).forEach(([key, value]) => {
+            if (value < (thresholds[key] || 30)) {
+                showAnalysisResult({
+                    message: `警告：${getMetricLabel(key)}低于阈值！当前值：${Math.round(value)}%`
+                });
+            }
+        });
+    } catch (error) {
+        console.error('检查阈值失败:', error);
+    }
+}
+
+function getMetricLabel(key) {
+    const labels = {
+        hunger: '饱腹度',
+        thirst: '口渴度',
+        toilet: '如厕需求',
+        social: '社交需求',
+        fatigue: '疲惫度',
+        hygiene: '卫生状况',
+        fitness: '瘦身指数',
+        happiness: '幸福感',
+        achievement: '成就感',
+        eyeFatigue: '视疲劳',
+        sleepQuality: '睡眠质量',
+        heartHealth: '心脏健康度',
+        muscle: '肌肉强度',
+        agility: '敏捷度',
+        resistance: '抗击打能力',
+        timeControl: '时间掌控度',
+        creativity: '创造力',
+        security: '安全感'
+    };
+    return labels[key] || key;
 }
 
 // 事件管理
@@ -145,6 +212,24 @@ async function showEventWindow() {
             </div>
         `;
         showModal(content, '事件管理');
+
+        // 添加事件表单提交处理
+        document.getElementById('eventForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const eventData = {
+                name: formData.get('name'),
+                type: formData.get('type'),
+                duration: parseInt(formData.get('duration'))
+            };
+            try {
+                await apiService.createEvent(eventData);
+                showEventWindow(); // 刷新事件列表
+            } catch (error) {
+                console.error('创建事件失败:', error);
+                showAnalysisResult({ message: '创建事件失败，请检查网络连接' });
+            }
+        });
     } catch (error) {
         console.error('加载事件失败:', error);
         showAnalysisResult({ message: '加载事件失败，请检查网络连接' });
@@ -219,7 +304,8 @@ async function generateMonthlyReport() {
 // 设置管理
 async function showSettings() {
     try {
-        const settings = await apiService.getSettings();
+        const currentSettings = await apiService.getSettings();
+        settings = currentSettings;
         const content = `
             <div class="settings-form">
                 <h4>系统设置</h4>
@@ -237,6 +323,27 @@ async function showSettings() {
             </div>
         `;
         showModal(content, '系统设置');
+
+        // 添加设置表单提交处理
+        document.getElementById('settingsForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const newSettings = {
+                syncInterval: parseInt(formData.get('syncInterval')),
+                alertThreshold: parseInt(formData.get('alertThreshold'))
+            };
+            try {
+                await apiService.updateSettings(newSettings);
+                settings = newSettings;
+                // 更新同步间隔
+                clearInterval(syncInterval);
+                syncInterval = setInterval(loadHealthData, settings.syncInterval * 60 * 1000);
+                showAnalysisResult({ message: '设置已保存' });
+            } catch (error) {
+                console.error('保存设置失败:', error);
+                showAnalysisResult({ message: '保存设置失败，请检查网络连接' });
+            }
+        });
     } catch (error) {
         console.error('加载设置失败:', error);
         showAnalysisResult({ message: '加载设置失败，请检查网络连接' });
@@ -246,14 +353,15 @@ async function showSettings() {
 // 阈值设置
 async function showThresholdSettings() {
     try {
-        const thresholds = await apiService.getThresholds();
+        const currentThresholds = await apiService.getThresholds();
+        thresholds = currentThresholds;
         const content = `
             <div class="threshold-form">
                 <h4>阈值设置</h4>
                 <form id="thresholdForm">
                     ${Object.entries(thresholds).map(([key, value]) => `
                         <div class="form-group">
-                            <label>${key}</label>
+                            <label>${getMetricLabel(key)}</label>
                             <input type="number" name="${key}" value="${value}">
                         </div>
                     `).join('')}
@@ -262,6 +370,24 @@ async function showThresholdSettings() {
             </div>
         `;
         showModal(content, '阈值设置');
+
+        // 添加阈值表单提交处理
+        document.getElementById('thresholdForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const newThresholds = {};
+            for (const [key, value] of formData.entries()) {
+                newThresholds[key] = parseInt(value);
+            }
+            try {
+                await apiService.updateThresholds(newThresholds);
+                thresholds = newThresholds;
+                showAnalysisResult({ message: '阈值设置已保存' });
+            } catch (error) {
+                console.error('保存阈值设置失败:', error);
+                showAnalysisResult({ message: '保存阈值设置失败，请检查网络连接' });
+            }
+        });
     } catch (error) {
         console.error('加载阈值设置失败:', error);
         showAnalysisResult({ message: '加载阈值设置失败，请检查网络连接' });
@@ -303,43 +429,12 @@ function updateCurrentTime() {
     document.querySelector('.time').textContent = `当前时间: ${timeString}`;
 }
 
-// 初始化事件监听器
-function initializeEventListeners() {
-    // AI分析按钮
-    document.querySelector('.ai-analysis .gradient-button').addEventListener('click', () => {
-        analyzeWithAI();
-    });
-
-    // 阈值设置按钮
-    document.querySelector('.threshold-settings .gradient-button').addEventListener('click', () => {
-        showThresholdSettings();
-    });
-
-    // 底部功能按钮
-    document.querySelectorAll('.footer button').forEach(button => {
-        button.addEventListener('click', () => {
-            handleFooterButtonClick(button.textContent);
-        });
-    });
-}
-
-// AI分析功能
-function analyzeWithAI() {
-    // 这里可以添加与后端API的通信
-    console.log('开始AI分析...');
-    // 模拟AI分析结果
-    const analysisResult = {
-        status: 'success',
-        message: '根据当前数据，您的整体状态良好，但需要注意视疲劳和疲惫度较高。建议适当休息，进行眼部放松。'
-    };
-    showAnalysisResult(analysisResult);
-}
-
 // 显示分析结果
 function showAnalysisResult(result) {
     const logElement = document.querySelector('.log pre');
     const timestamp = new Date().toLocaleString();
     logElement.innerHTML += `\n[${timestamp}] ${result.message}`;
+    logElement.scrollTop = logElement.scrollHeight;
 }
 
 // 处理底部按钮点击
@@ -358,7 +453,7 @@ function handleFooterButtonClick(buttonText) {
             analyzeTrends();
             break;
         case '同步健康数据':
-            syncHealthData();
+            loadHealthData();
             break;
         case '趋势图':
             showTrendCharts();
@@ -376,8 +471,102 @@ function handleFooterButtonClick(buttonText) {
 }
 
 // 初始化函数
+let syncInterval;
+
+
+// ... 保持现有代码不变 ...
+
+// 语音识别功能
+class SpeechRecognitionManager {
+    constructor() {
+        this.recorder = null;
+        this.mediaStream = null;
+        this.isRecording = false;
+    }
+
+    async initialize() {
+        try {
+            this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            this.recorder = new MediaRecorder(this.mediaStream);
+            
+            this.recorder.ondataavailable = async (event) => {
+                if (event.data.size > 0) {
+                    const formData = new FormData();
+                    formData.append('audio', new Blob([event.data], { type: 'audio/wav' }));
+                    
+                    try {
+                        const response = await fetch('/api/speech/record', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        const result = await response.json();
+                        if (result.text) {
+                            showAnalysisResult({ message: `语音识别结果: ${result.text}` });
+                            // 处理语音命令
+                            handleVoiceCommand(result.text);
+                        }
+                    } catch (error) {
+                        console.error('语音识别失败:', error);
+                        showAnalysisResult({ message: '语音识别失败，请重试' });
+                    }
+                }
+            };
+        } catch (error) {
+            console.error('初始化语音识别失败:', error);
+            showAnalysisResult({ message: '初始化语音识别失败，请检查麦克风权限' });
+        }
+    }
+
+    startRecording(duration = 5) {
+        if (!this.recorder || this.isRecording) return;
+        
+        this.isRecording = true;
+        this.recorder.start();
+        showAnalysisResult({ message: '开始录音...' });
+        
+        setTimeout(() => {
+            this.stopRecording();
+        }, duration * 1000);
+    }
+
+    stopRecording() {
+        if (!this.recorder || !this.isRecording) return;
+        
+        this.recorder.stop();
+        this.isRecording = false;
+        showAnalysisResult({ message: '录音结束，正在识别...' });
+    }
+}
+
+// 语音命令处理
+function handleVoiceCommand(text) {
+    const commands = {
+        '分析': () => analyzeWithAI(),
+        '趋势': () => analyzeTrends(),
+        '周报': () => generateWeeklyReport(),
+        '月报': () => generateMonthlyReport(),
+        '设置': () => showSettings(),
+        '事件': () => showEventWindow(),
+        '训练': () => trainModel(),
+        '同步': () => loadHealthData()
+    };
+
+    for (const [command, action] of Object.entries(commands)) {
+        if (text.includes(command)) {
+            action();
+            break;
+        }
+    }
+}
+
+// 初始化语音识别
+const speechManager = new SpeechRecognitionManager();
+
+// 更新初始化函数
 async function initialize() {
     await loadHealthData();
+    await checkThresholds();
+    await speechManager.initialize();
     updateCurrentTime();
     initializeEventListeners();
     
@@ -385,8 +574,40 @@ async function initialize() {
     setInterval(updateCurrentTime, 1000);
     
     // 定期同步数据
-    setInterval(loadHealthData, 5 * 60 * 1000); // 每5分钟同步一次
+    syncInterval = setInterval(loadHealthData, settings.syncInterval * 60 * 1000);
 }
 
+// 添加语音按钮事件
+function initializeEventListeners() {
+    // ... 保持现有事件监听器不变 ...
+
+    // 添加语音按钮
+    const voiceButton = document.createElement('button');
+    voiceButton.className = 'gradient-button';
+    voiceButton.textContent = '语音输入';
+    voiceButton.style.position = 'fixed';
+    voiceButton.style.bottom = '20px';
+    voiceButton.style.right = '20px';
+    voiceButton.style.zIndex = '1000';
+    
+    voiceButton.addEventListener('mousedown', () => {
+        speechManager.startRecording();
+    });
+    
+    voiceButton.addEventListener('mouseup', () => {
+        speechManager.stopRecording();
+    });
+    
+    voiceButton.addEventListener('mouseleave', () => {
+        if (speechManager.isRecording) {
+            speechManager.stopRecording();
+        }
+    });
+    
+    document.body.appendChild(voiceButton);
+}
+
+
+
 // 页面加载完成后初始化
-document.addEventListener('DOMContentLoaded', initialize); 
+document.addEventListener('DOMContentLoaded', initialize);

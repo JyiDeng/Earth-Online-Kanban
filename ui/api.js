@@ -33,8 +33,8 @@ const apiService = {
         return await apiRequest('/health-data');
     },
 
-    async updateHealthData(data) {
-        return await apiRequest('/health-data', 'POST', data);
+    async syncHealthData(data) {
+        return await apiRequest('/health/sync', 'POST', data);
     },
 
     // 事件相关
@@ -47,7 +47,7 @@ const apiService = {
     },
 
     async updateEvent(eventId, eventData) {
-        return await apiRequest(`/events/${eventId}`, 'PUT', eventData);
+        return await apiRequest(`/events/${eventId}`, 'POST', eventData);
     },
 
     async deleteEvent(eventId) {
@@ -69,7 +69,7 @@ const apiService = {
     },
 
     async getTrends() {
-        return await apiRequest('/analysis/trends');
+        return await apiRequest('/history');
     },
 
     // 报告相关
@@ -83,7 +83,7 @@ const apiService = {
     },
 
     async updateSettings(settings) {
-        return await apiRequest('/settings', 'PUT', settings);
+        return await apiRequest('/settings', 'POST', settings);
     },
 
     // 阈值相关
@@ -92,7 +92,17 @@ const apiService = {
     },
 
     async updateThresholds(thresholds) {
-        return await apiRequest('/thresholds', 'PUT', thresholds);
+        return await apiRequest('/thresholds', 'POST', thresholds);
+    },
+
+    // 语音识别相关
+    async recordSpeech(audioData) {
+        const formData = new FormData();
+        formData.append('audio', audioData);
+        return await fetch(`${API_BASE_URL}/speech/record`, {
+            method: 'POST',
+            body: formData
+        }).then(response => response.json());
     }
 };
 
