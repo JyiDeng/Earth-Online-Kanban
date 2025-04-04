@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="1.css">
+  <script src="api.js" type="module"></script>
+  <script src="1.js" type="module"></script>
+  <title>地球Online看板</title>
+</head>
+
+<body>
+  <!-- 顶部导航区 -->
+  <header class="header">
+    <div class="logo">地球Online</div>
+    <div class="user-info">
+      <span class="time">当前时间: 2025-04-04 11:19:08</span>
+      <span class="username">玩家名称: 地球玩家001</span>
+    </div>
+  </header>
+
+  <!-- 数据展示区 -->
+  <main class="main">
+    <!-- 生理需求卡片 -->
+    <div class="card physiological">
+      <h2>生理需求</h2>
+      <div class="metric" data-type="hunger">
+        <span class="icon">🍔</span>
+        <span class="label">饱腹</span>
+        <span class="value">96%</span>
+        <progress class="progress" value="96" max="100"></progress>
+      </div>
+      <div class="metric" data-type="thirst">
+        <span class="icon">🥤</span>
+        <span class="label">口渴</span>
+        <span class="value">86%</span>
+        <progress class="progress" value="86" max="100"></progress>
+      </div>
+      <div class="metric" data-type="toilet">
+        <span class="icon">🚽</span>
+        <span class="label">如厕</span>
+        <span class="value">30%</span>
+        <progress class="progress" value="30" max="100"></progress>
+      </div>
+      <div class="metric" data-type="social">
+        <span class="icon">👥</span>
+        <span class="label">社交需求</span>
+        <span class="value">49%</span>
+        <progress class="progress" value="49" max="100"></progress>
+      </div>
+      <div class="metric" data-type="fatigue">
+        <span class="icon">💤</span>
+        <span class="label">疲惫</span>
+        <span class="value">92%</span>
+        <progress class="progress" value="92" max="100"></progress>
+      </div>
+      <div class="metric" data-type="hygiene">
+        <span class="icon">🧼</span>
+        <span class="label">卫生</span>
+        <span class="value">50%</span>
+        <progress class="progress" value="50" max="100"></progress>
+      </div>
+    </div>
+
+    <!-- 身心状况卡片 -->
+    <div class="card mental">
+      <h2>身心状况</h2>
+      <div class="metric" data-type="fitness">
+        <span class="icon">💪</span>
+        <span class="label">瘦身指数</span>
+        <span class="value">40%</span>
+        <progress class="progress" value="40" max="100"></progress>
+      </div>
+      <div class="metric" data-type="happiness">
+        <span class="icon">😄</span>
+        <span class="label">幸福感</span>
+        <span class="value">99%</span>
+        <progress class="progress" value="99" max="100"></progress>
+      </div>
+      <div class="metric" data-type="achievement">
+        <span class="icon">🎖️</span>
+        <span class="label">成就感</span>
+        <span class="value">49%</span>
+        <progress class="progress" value="49" max="100"></progress>
+      </div>
+      <div class="metric" data-type="eyeFatigue">
+        <span class="icon">👀</span>
+        <span class="label">视疲劳</span>
+        <span class="value">89%</span>
+        <progress class="progress" value="89" max="100"></progress>
+      </div>
+      <div class="metric" data-type="sleepQuality">
+        <span class="icon">🛌</span>
+        <span class="label">睡眠质量</span>
+        <span class="value">75%</span>
+        <progress class="progress" value="75" max="100"></progress>
+      </div>
+      <div class="metric" data-type="heartHealth">
+        <span class="icon">❤️</span>
+        <span class="label">心脏健康度</span>
+        <span class="value">76%</span>
+        <progress class="progress" value="76" max="100"></progress>
+      </div>
+    </div>
+
+    <!-- 能力属性卡片 -->
+    <div class="card ability">
+      <h2>能力属性</h2>
+      <div class="metric" data-type="muscle">
+        <span class="icon">💪</span>
+        <span class="label">肌肉强度</span>
+        <span class="value">44%</span>
+        <progress class="progress" value="44" max="100"></progress>
+      </div>
+      <div class="metric" data-type="agility">
+        <span class="icon">⚡</span>
+        <span class="label">敏捷</span>
+        <span class="value">49%</span>
+        <progress class="progress" value="49" max="100"></progress>
+      </div>
+      <div class="metric" data-type="resistance">
+        <span class="icon">🥊</span>
+        <span class="label">抗击打能力</span>
+        <span class="value">48%</span>
+        <progress class="progress" value="48" max="100"></progress>
+      </div>
+      <div class="metric" data-type="timeControl">
+        <span class="icon">⏱️</span>
+        <span class="label">时间掌控度</span>
+        <span class="value">50%</span>
+        <progress class="progress" value="50" max="100"></progress>
+      </div>
+      <div class="metric" data-type="creativity">
+        <span class="icon">🎨</span>
+        <span class="label">创造力</span>
+        <span class="value">51%</span>
+        <progress class="progress" value="51" max="100"></progress>
+      </div>
+      <div class="metric" data-type="security">
+        <span class="icon">🛡️</span>
+        <span class="label">安全感</span>
+        <span class="value">49%</span>
+        <progress class="progress" value="49" max="100"></progress>
+      </div>
+    </div>
+  </main>
+
+  <!-- 分析与设置区域 -->
+  <section class="analysis-settings">
+    <!-- AI状态分析面板 -->
+    <div class="panel ai-analysis">
+      <h2>AI状态分析</h2>
+      <button class="gradient-button">AI分析当前状态</button>
+      <button>放大查看</button>
+    </div>
+    <!-- 阈值提醒设置面板 -->
+    <div class="panel threshold-settings">
+      <h2>阈值提醒设置</h2>
+      <button class="gradient-button">设置阈值提醒</button>
+      <button>放大查看</button>
+    </div>
+  </section>
+
+  <!-- 底部功能区 -->
+  <footer class="footer">
+    <button>设置</button>
+    <button>事件</button>
+    <button>训练模型(事件对应属性增减)</button>
+    <button>分析趋势</button>
+    <button>同步健康数据</button>
+    <button>趋势图</button>
+    <button>周报</button>
+    <button>月报</button>
+    <button class="emphasize-button">重置(下次打开生效)</button>
+  </footer>
+
+  <!-- 系统日志区域 -->
+  <div class="log">
+    <h2>系统日志</h2>
+    <pre id="systemLog">已加载历史数据记录，共164个时间点</pre>
+  </div>
+
+  <!-- 模态框容器 -->
+  <div id="modalContainer" class="modal-container">
+    <!-- 模态框内容将通过JavaScript动态添加 -->
+  </div>
+</body>
+
+</html>
