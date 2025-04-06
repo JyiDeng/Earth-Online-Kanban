@@ -827,8 +827,8 @@ class SpeechRecognitionManager {
                 }
             };
         } catch (error) {
-            console.error('初始化语音识别失败:', error);
-            showAnalysisResult({ message: '初始化语音识别失败，请检查麦克风权限' });
+            console.error('初始化RealtimeStt语音识别失败:', error);
+            showAnalysisResult({ message: '初始化RealtimeStt语音识别失败，可用讯飞或百度api替代' });
         }
     }
 

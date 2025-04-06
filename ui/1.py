@@ -5,9 +5,9 @@ import os
 import time
 from datetime import datetime, timedelta
 import random
-import numpy as np
-from sklearn.linear_model import LinearRegression
-import pandas as pd
+# import numpy as np
+# from sklearn.linear_model import LinearRegression
+# import pandas as pd
 import traceback
 import threading
 import tempfile
@@ -49,10 +49,9 @@ sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__f
 # 初始化OpenAI代理
 try:
     # 设置OpenAI API密钥和代理
-    os.environ["GOOGLE_CSE_ID"] = "123"
-    os.environ["GOOGLE_API_KEY"] = "123-123"
-    os.environ["OPENAI_API_KEY"] = "sk-123"
-
+    os.environ["GOOGLE_CSE_ID"] = "e74736660ea16424e"
+    os.environ["GOOGLE_API_KEY"] = "AIzaSyDi8Ri0JE93Sdk6RM-pgXgxhLbROjHCL2U"
+    os.environ["OPENAI_API_KEY"] = "sk-q21325baf11b4aaf3bdef5ecdb338313a5bf68e80aez8d6w"
     os.environ["http_proxy"] = "http://localhost:7890"
     os.environ["https_proxy"] = "http://localhost:7890"
     
@@ -101,15 +100,166 @@ except ImportError:
 @app.route('/api/speech/record', methods=['POST'])
 def record_speech():
     try:
-        print("接收到语音识别请求 - 使用模拟响应")
-        return jsonify({
-            "status": "success", 
-            "text": "模拟语音识别结果：有氧运动30分钟"
-        })
+        print("接收到语音识别请求 - 调用讯飞语音识别")
+        
+        # 导入讯飞语音识别模块
+        import sys
+        import os
+        
+        # 确保当前目录在搜索路径中
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        if current_dir not in sys.path:
+            sys.path.append(current_dir)
+            
+        # 现在导入讯飞模块
+        try:
+            import qianfan_xunfei
+            print("成功导入讯飞模块")
+        except ImportError as e:
+            print(f"导入讯飞模块失败: {e}")
+            print(f"Python路径: {sys.path}")
+            raise
+            
+        import threading
+        import time
+        import base64
+        import _thread as thread
+        
+        # 清空结果文本，确保每次录音都是新的开始
+        result_text = ""
+        
+        # 存储语音识别结果的回调
+        def on_message_callback(ws, message):
+            nonlocal result_text
+            try:
+                data = json.loads(message)
+                code = data.get("code")
+                if code == 0:
+                    data = data["data"]["result"]["ws"]
+                    recognized_text = ""
+                    for i in data:
+                        for w in i["cw"]:
+                            recognized_text += w["w"]
+                    # 累积所有识别结果，而不是替换
+                    if recognized_text:
+                        result_text += recognized_text
+                        print(f"累积识别结果: {result_text}")
+            except Exception as e:
+                print(f"处理讯飞回调消息出错: {e}")
+                print(f"原始消息: {message}")
+
+        # 创建讯飞语音识别的实例
+        audio_input = qianfan_xunfei.AudioInput()
+        audio_filename = audio_input.audio_record()
+        
+        # 设置讯飞语音识别参数
+        wsParam = qianfan_xunfei.Ws_Param(
+            APPID='704ffc5f', 
+            APISecret='MDBmNmQyMzM4YzhmZTJjNDUwNGRmZWUw',
+            APIKey='221ada6e9100f9f98ff5b1b901b6802d',
+            AudioFile=audio_filename
+        )
+        
+        # 配置WebSocket
+        websocket = qianfan_xunfei.websocket
+        websocket.enableTrace(False)
+        wsUrl = wsParam.create_url()
+        
+        # 重写on_open函数以解决变量作用域问题
+        def custom_on_open(ws):
+            def run(*args):
+                frameSize = 8000  # 每一帧的音频大小
+                intervel = 0.04  # 发送音频间隔(单位:s)
+                status = qianfan_xunfei.STATUS_FIRST_FRAME  # 音频的状态信息
+
+                try:
+                    with open(audio_filename, "rb") as fp:
+                        while True:
+                            buf = fp.read(frameSize)
+                            # 文件结束
+                            if not buf:
+                                status = qianfan_xunfei.STATUS_LAST_FRAME
+                            # 第一帧处理
+                            if status == qianfan_xunfei.STATUS_FIRST_FRAME:
+                                d = {"common": wsParam.CommonArgs,
+                                    "business": wsParam.BusinessArgs,
+                                    "data": {"status": 0, "format": "audio/L16;rate=16000",
+                                            "audio": str(base64.b64encode(buf), 'utf-8'),
+                                            "encoding": "raw"}}
+                                d = json.dumps(d)
+                                ws.send(d)
+                                status = qianfan_xunfei.STATUS_CONTINUE_FRAME
+                            # 中间帧处理
+                            elif status == qianfan_xunfei.STATUS_CONTINUE_FRAME:
+                                d = {"data": {"status": 1, "format": "audio/L16;rate=16000",
+                                            "audio": str(base64.b64encode(buf), 'utf-8'),
+                                            "encoding": "raw"}}
+                                ws.send(json.dumps(d))
+                            # 最后一帧处理
+                            elif status == qianfan_xunfei.STATUS_LAST_FRAME:
+                                d = {"data": {"status": 2, "format": "audio/L16;rate=16000",
+                                            "audio": str(base64.b64encode(buf), 'utf-8'),
+                                            "encoding": "raw"}}
+                                ws.send(json.dumps(d))
+                                time.sleep(1)
+                                break
+                            # 模拟音频采样间隔
+                            time.sleep(intervel)
+                except Exception as e:
+                    print(f"语音处理错误: {e}")
+                finally:
+                    ws.close()
+                    print("WebSocket连接已关闭")
+
+            thread.start_new_thread(run, ())
+        
+        # 创建WebSocket连接
+        ws = websocket.WebSocketApp(
+            wsUrl, 
+            on_message=on_message_callback, 
+            on_error=qianfan_xunfei.on_error, 
+            on_close=qianfan_xunfei.on_close
+        )
+        ws.on_open = custom_on_open
+        
+        # 在单独的线程中运行WebSocket客户端
+        def run_ws():
+            ws.run_forever(sslopt={"cert_reqs": qianfan_xunfei.ssl.CERT_NONE})
+            
+        ws_thread = threading.Thread(target=run_ws)
+        ws_thread.daemon = True
+        ws_thread.start()
+        
+        # 等待识别完成，最多等待8秒
+        max_wait = 8
+        while max_wait > 0 and not result_text:
+            time.sleep(0.5)
+            max_wait -= 0.5
+            
+        # 打印并返回最终识别结果
+        if result_text:
+            print(f"讯飞语音识别结果: {result_text}")
+            return jsonify({
+                "status": "success", 
+                "text": result_text
+            })
+        else:
+            print("讯飞语音识别未返回结果或超时")
+            return jsonify({
+                "status": "success", 
+                "text": "未能识别语音内容，请直接输入文字"
+            })
     except Exception as e:
-        print(f"语音识别处理错误: {str(e)}")
+        error_msg = f"语音识别处理错误: {str(e)}"
+        print(error_msg)
         traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        
+        # 即使出错，也返回一个友好的响应，让用户可以继续操作
+        return jsonify({
+            "status": "partial_success", 
+            "text": "语音识别发生了一些问题，请直接输入事件描述",
+            "error": str(e)
+        })
 
 # 释放语音识别资源
 @app.route('/api/speech/cleanup', methods=['POST'])

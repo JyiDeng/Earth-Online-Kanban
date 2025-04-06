@@ -267,12 +267,7 @@
         let currentImpact = null;
         let correctionValues = {};
         let healthData = null;
-        let mediaStream = null;
-        let mediaRecorder = null;
         let isRecording = false;
-        let audioContext = null;
-        let audioChunks = [];
-        let recordingTimeout = null;
 
         // 初始化函数
         async function init() {
@@ -381,148 +376,67 @@
             const micButton = document.getElementById('micButton');
             
             if (isRecording) {
-                // 停止录音
-                stopListening();
+                // 录音已在进行中，用户不能中断，只显示提示
+                alert('录音已在进行中，请等待完成...');
+                return;
+            }
+            
+            // 开始录音
+            try {
+                // 设置状态为录音中
+                isRecording = true;
+                micButton.textContent = '🔴';  // 使用红点表示录音中
+                micButton.classList.add('mic-active');
+                micButton.disabled = true;  // 禁用按钮避免重复点击
+                
+                // 直接调用后端API进行录音和识别
+                await startServerSideRecording();
+                
+                // 录音完成后恢复按钮状态
+                isRecording = false;
                 micButton.textContent = '🎤';
                 micButton.classList.remove('mic-active');
-            } else {
-                // 开始录音
-                try {
-                    micButton.textContent = '⏺';
-                    micButton.classList.add('mic-active');
-                    await startListening();
-                } catch (error) {
-                    console.error('启动录音失败:', error);
-                    alert('无法访问麦克风，请检查权限设置');
-                    micButton.textContent = '🎤';
-                    micButton.classList.remove('mic-active');
-                }
-            }
-        }
-
-        // 开始录音
-        async function startListening() {
-            console.log('开始录音...');
-            try {
-                // 确保之前的资源被清理
-                closeMediaStream();
+                micButton.disabled = false;  // 重新启用按钮
                 
-                // 重新请求媒体流
-                mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                audioContext = new AudioContext();
-                
-                mediaRecorder = new MediaRecorder(mediaStream);
-                audioChunks = [];
-                
-                mediaRecorder.addEventListener("dataavailable", event => {
-                    audioChunks.push(event.data);
-                });
-                
-                mediaRecorder.addEventListener("stop", async () => {
-                    console.log('录音停止，处理音频...');
-                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-                    await processAudio(audioBlob);
-                });
-                
-                mediaRecorder.start();
-                document.getElementById('micButton').innerText = '停止录音';
-                document.getElementById('micButton').dataset.action = 'stop';
-                
-                // 添加超时保护，确保不会无限录音
-                recordingTimeout = setTimeout(() => {
-                    console.log('录音超时，自动停止');
-                    stopListening();
-                }, 30000); // 30秒超时
             } catch (error) {
                 console.error('启动录音失败:', error);
-                alert('无法访问麦克风: ' + error.message);
-                document.getElementById('micButton').innerText = '使用语音';
-                document.getElementById('micButton').dataset.action = 'start';
+                alert('无法启动语音识别，请检查设置');
+                
+                // 错误时也要恢复按钮状态
+                isRecording = false;
+                micButton.textContent = '🎤';
+                micButton.classList.remove('mic-active');
+                micButton.disabled = false;
             }
         }
 
-        function stopListening() {
-            console.log('停止录音...');
+        // 开始服务器端录音和识别
+        async function startServerSideRecording() {
+            console.log('开始服务器端录音...');
+            
+            // 在输入框中显示录音状态
+            const nameInput = document.querySelector('input[name="name"]');
+            const originalPlaceholder = nameInput.placeholder || '事件描述';
+            nameInput.placeholder = '录音中，请说话...';
+            
+            // 显示录音进度
+            let dots = '';
+            const progressInterval = setInterval(() => {
+                dots = (dots.length >= 3) ? '' : dots + '.';
+                nameInput.placeholder = '录音中，请说话' + dots;
+            }, 500);
+            
             try {
-                if (recordingTimeout) {
-                    clearTimeout(recordingTimeout);
-                    recordingTimeout = null;
-                }
-                
-                if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-                    mediaRecorder.stop();
-                    console.log('录音器已停止');
-                }
-                
-                document.getElementById('micButton').innerText = '使用语音';
-                document.getElementById('micButton').dataset.action = 'start';
-                
-                // 延迟一点时间以确保dataavailable和stop事件被处理
-                setTimeout(() => {
-                    closeMediaStream();
-                }, 500);
-            } catch (error) {
-                console.error('停止录音时出错:', error);
-                // 即使出错也尝试清理资源
-                closeMediaStream();
-            }
-        }
-
-        // 关闭媒体流
-        function closeMediaStream() {
-            try {
-                console.log('清理媒体资源...');
-                if (mediaStream) {
-                    console.log('关闭媒体流');
-                    mediaStream.getTracks().forEach(track => {
-                        console.log(`停止音频轨道: ${track.kind}`);
-                        track.stop();
-                    });
-                    mediaStream = null;
-                }
-                
-                if (mediaRecorder) {
-                    if (mediaRecorder.state !== 'inactive') {
-                        console.log('停止录音器');
-                        try {
-                            mediaRecorder.stop();
-                        } catch (err) {
-                            console.warn('停止录音器时出错:', err);
-                        }
-                    }
-                    mediaRecorder = null;
-                }
-                
-                if (audioContext) {
-                    console.log('关闭音频上下文');
-                    try {
-                        if (audioContext.state !== 'closed') {
-                            audioContext.close();
-                        }
-                    } catch (err) {
-                        console.warn('关闭音频上下文时出错:', err);
-                    }
-                    audioContext = null;
-                }
-                
-                audioChunks = [];
-                console.log('媒体资源清理完成');
-            } catch (error) {
-                console.error('关闭媒体流时出错:', error);
-            }
-        }
-
-        // 处理语音识别
-        async function processAudio(audioBlob) {
-            try {
-                console.log('开始处理语音识别，准备发送数据...');
-                const formData = new FormData();
-                formData.append('audio', audioBlob);
-                
+                // 向服务器发送录音请求
                 const response = await fetch('/api/speech/record', {
-                    method: 'POST',
-                    body: formData
+                    method: 'POST'
                 });
+                
+                // 清除进度显示
+                clearInterval(progressInterval);
+                
+                // 恢复原始占位符
+                nameInput.placeholder = originalPlaceholder;
                 
                 if (!response.ok) {
                     const errorText = await response.text();
@@ -534,24 +448,26 @@
                 console.log('语音识别响应:', result);
                 
                 if (result && result.text) {
-                    // 在输入框中填入识别文本
-                    document.querySelector('input[name="name"]').value = result.text;
+                    // 如果输入框已有内容，则追加新内容，否则替换
+                    if (nameInput.value.trim()) {
+                        nameInput.value += ' ' + result.text;
+                    } else {
+                        nameInput.value = result.text;
+                    }
                     console.log('语音识别成功:', result.text);
                 } else {
                     console.warn('语音识别返回空结果');
-                    // 只在没有获取到结果时使用默认文本
-                    if (!document.querySelector('input[name="name"]').value) {
-                        document.querySelector('input[name="name"]').value = "训练有氧运动 30 分钟";
-                        console.log('使用默认文本');
-                    }
+                    alert('未能识别您的语音，请重试或直接输入文字');
                 }
             } catch (error) {
+                // 清除进度显示
+                clearInterval(progressInterval);
+                
+                // 恢复原始占位符
+                nameInput.placeholder = originalPlaceholder;
+                
                 console.error('语音识别处理失败:', error);
-                // 错误时使用默认文本
-                if (!document.querySelector('input[name="name"]').value) {
-                    document.querySelector('input[name="name"]').value = "训练有氧运动 30 分钟";
-                    console.log('使用默认文本');
-                }
+                alert('语音识别失败: ' + error.message);
             }
         }
 
