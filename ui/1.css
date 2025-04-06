@@ -31,7 +31,7 @@ body {
     backdrop-filter: blur(10px);
     border: 1px solid rgba(100, 255, 218, 0.1);
     border-radius: 20px;
-    margin: 20px;
+    margin: 20px 20px 10px 20px;
     transform-style: preserve-3d;
     transition: transform 0.5s ease;
     box-shadow: 0 0 20px rgba(100, 255, 218, 0.1);
@@ -592,6 +592,7 @@ body {
     transition: all 0.5s ease;
     animation: floatCategory 6s ease-in-out infinite;
     overflow: hidden;
+    margin: 20px 0;
 }
 
 .category:nth-child(1) {

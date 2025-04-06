@@ -4,92 +4,202 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>健康属性阈值设置</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="1.css">
+    <link rel="stylesheet" href="orbitron.css">
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: 'Microsoft YaHei', Arial, sans-serif;
-            background-color: #f8f9fa;
-            color: #333;
+            font-family: 'Orbitron', sans-serif;
+            background: linear-gradient(135deg, #0a192f, #112240);
+            color: #64ffda;
+            min-height: 100vh;
+            perspective: 1000px;
+            overflow-x: hidden;
+            padding: 20px;
         }
+
         .header {
-            background: linear-gradient(135deg, #4e54c8, #8f94fb);
+            background: rgba(10, 25, 47, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(100, 255, 218, 0.1);
             color: white;
-            padding: 20px 0;
+            padding: 12px 0;
             text-align: center;
-            margin-bottom: 30px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin: 0 300px 20px 300px;
+            box-shadow: 0 0 20px rgba(100, 255, 218, 0.1);
+            border-radius: 20px;
+            transform-style: preserve-3d;
+            transition: transform 0.5s ease;
+            position: relative;
         }
+
+        .header:hover {
+            transform: translateZ(20px);
+        }
+
+        .header h1 {
+            color: #64ffda;
+            text-shadow: 0 0 10px rgba(100, 255, 218, 0.5);
+            text-align: center;
+            font-size: 1.8rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            color: #ccd6f6;
+            text-align: center;
+            font-size: 0.9rem;
+            margin-bottom: 0;
+        }
+
         .card {
+            background: rgba(10, 25, 47, 0.6);
+            border: 1px solid rgba(100, 255, 218, 0.1);
             border-radius: 15px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+            box-shadow: 0 0 20px rgba(100, 255, 218, 0.1);
             border: none;
             margin-bottom: 20px;
             transition: transform 0.3s, box-shadow 0.3s;
+            animation: float 6s ease-in-out infinite;
+            height: auto;
+            min-height: 260px;
         }
+
         .card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+            transform: translateZ(30px) scale(1.02);
+            box-shadow: 0 0 30px rgba(100, 255, 218, 0.2);
         }
+
+        .card:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .card:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
         .card-header {
-            background: linear-gradient(to right, #f8f9fa, #e9ecef);
+            background: rgba(10, 25, 47, 0.4);
             border-radius: 15px 15px 0 0 !important;
-            padding: 15px;
+            padding: 10px 15px;
             font-weight: bold;
-            color: #495057;
+            color: #64ffda;
+            text-shadow: 0 0 10px rgba(100, 255, 218, 0.3);
+            border-bottom: 1px solid rgba(100, 255, 218, 0.1);
+            font-size: 1.2rem;
         }
+
         .btn-primary {
-            background: linear-gradient(135deg, #4e54c8, #8f94fb);
+            background: linear-gradient(135deg, #00b4d8, #64ffda);
             border: none;
-            border-radius: 10px;
-            padding: 10px 20px;
+            border-radius: 15px;
+            padding: 10px 16px;
             font-weight: bold;
             transition: all 0.3s;
+            color: #0a192f;
+            transform-style: preserve-3d;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(0, 180, 216, 0.2);
         }
+
         .btn-primary:hover {
-            background: linear-gradient(135deg, #3f43a0, #7276cb);
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            transform: translateY(-3px) translateZ(10px);
+            box-shadow: 0 0 25px rgba(100, 255, 218, 0.5);
         }
+
         .form-range {
-            height: 1.5rem;
+            height: 8px;
+            -webkit-appearance: none;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 4px;
         }
+
         .form-range::-webkit-slider-thumb {
-            background: #4e54c8;
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #64ffda;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(100, 255, 218, 0.5);
         }
+
         .form-range::-moz-range-thumb {
-            background: #4e54c8;
+            width: 20px;
+            height: 20px;
+            background: #64ffda;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(100, 255, 218, 0.5);
         }
+        
+        /* 添加滑块渐变色样式 */
+        .form-range::-webkit-slider-runnable-track {
+            background: linear-gradient(to right, #1e254b, #f7f7f7);
+            height: 8px;
+            border-radius: 4px;
+        }
+        
+        .form-range::-moz-range-track {
+            background: linear-gradient(to right, #1e254b, #f7f7f7);
+            height: 8px;
+            border-radius: 4px;
+        }
+
         .form-label {
             font-weight: 500;
-            margin-top: 10px;
+            margin-top: 0px;
+            color: #ccd6f6;
+            font-size: 1.1rem;
         }
-        .range-value {
-            font-weight: bold;
-            color: #4e54c8;
-            width: 50px;
-            text-align: center;
-        }
+
         .navbar {
-            background: linear-gradient(135deg, #4e54c8, #8f94fb);
+            background: rgba(10, 25, 47, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(100, 255, 218, 0.1);
+            border-radius: 20px;
+            margin-bottom: 20px;
+            transform-style: preserve-3d;
+            transition: transform 0.5s ease;
         }
+
+        .navbar:hover {
+            transform: translateZ(20px);
+        }
+
         .navbar-brand {
             font-weight: bold;
-            color: white !important;
+            color: #64ffda !important;
+            text-shadow: 0 0 10px rgba(100, 255, 218, 0.3);
         }
+
         .nav-link {
             color: rgba(255, 255, 255, 0.9) !important;
             font-weight: 500;
             transition: all 0.3s;
         }
+
         .nav-link:hover {
-            color: white !important;
+            color: #64ffda !important;
             transform: translateY(-2px);
         }
+
         .active {
-            color: white !important;
-            border-bottom: 3px solid white;
+            color: #64ffda !important;
+            border-bottom: 3px solid #64ffda;
         }
+
         .alert-container {
             position: fixed;
             top: 20px;
@@ -97,26 +207,131 @@
             width: 300px;
             z-index: 9999;
         }
+
         .threshold-input-group {
             display: flex;
             align-items: center;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
+            background: rgba(10, 25, 47, 0.4);
+            padding: 8px 4px;
+            border-radius: 10px;
+            border: 1px solid rgba(100, 255, 218, 0.1);
         }
+
+        .threshold-input-group:hover {
+            background: rgba(10, 25, 47, 0.6);
+            border: 1px solid rgba(100, 255, 218, 0.3);
+        }
+
         .threshold-input-group input[type="range"] {
             flex-grow: 1;
             margin-right: 10px;
         }
+
         .threshold-input-group input[type="number"] {
-            width: 70px;
+            width: 60px;
             text-align: center;
+            background: rgba(10, 25, 47, 0.6);
+            border: 1px solid rgba(100, 255, 218, 0.3);
+            color: #64ffda;
+            border-radius: 5px;
+            padding: 5px;
+        }
+
+        .container {
+            max-width: 1200px;
+            padding: 0 40px;
+        }
+
+        .alert-info {
+            background: rgba(10, 25, 47, 0.6);
+            border: 1px solid rgba(100, 255, 218, 0.3);
+            color: #ccd6f6;
+            margin: 30px 0;
+            padding: 20px;
+            border-radius: 10px;
+        }
+
+        .card-body {
+            background: rgba(10, 25, 47, 0.2);
+            border-radius: 0 0 15px 15px;
+            padding: 10px;
+        }
+
+        .row {
+            display: flex;
+            flex-wrap: wrap;
+        }
+
+        .col-md-4 {
+            flex: 0 0 33.333333%;
+            max-width: 33.333333%;
+            padding: 0 10px;
+        }
+
+        .save-btn-container {
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        @media (max-width: 768px) {
+            .col-md-4 {
+                flex: 0 0 100%;
+                max-width: 100%;
+            }
+            
+            .header {
+                margin: 0 200px 20px 200px;
+            }
+            
+            .save-btn-container {
+                position: static;
+                margin-top: 10px;
+                text-align: center;
+                transform: none;
+            }
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0px) translateZ(0); }
+            50% { transform: translateY(-10px) translateZ(10px); }
+            100% { transform: translateY(0px) translateZ(0); }
+        }
+
+        /* 滚动条样式 */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(10, 25, 47, 0.3);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(100, 255, 218, 0.3);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(100, 255, 218, 0.5);
+        }
+        
+        .footer {
+            text-align: center;
+            /* margin-top: 30px; */
+            padding: 20px;
+            color: #8892b0;
+            font-size: 0.9rem;
         }
     </style>
 </head>
-<body>
+<body class="orbitron-font">
     <!-- 导航栏 -->
-    <nav class="navbar navbar-expand-lg navbar-dark">
+    <nav class="navbar navbar-expand-lg">
         <div class="container">
-            <a class="navbar-brand" href="/">健康监测系统</a>
+            <a class="navbar-brand" href="/">地球Online</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
@@ -131,6 +346,9 @@
                     <li class="nav-item">
                         <a class="nav-link active" href="/thresholds">阈值设置</a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/trends">趋势图</a>
+                    </li>
                 </ul>
             </div>
         </div>
@@ -142,24 +360,17 @@
             <h1><i class="bi bi-sliders"></i> 健康属性阈值设置</h1>
             <p class="lead">设置各健康属性的提醒阈值，当属性达到阈值时系统将发出提醒</p>
         </div>
+        <div class="save-btn-container">
+            <button id="save-thresholds" class="btn-primary">
+                <i class="bi bi-save me-2"></i>保存设置
+            </button>
+        </div>
     </div>
 
     <!-- 主要内容 -->
     <div class="container mb-5">
+        <!-- 属性设置区域 -->
         <div class="row">
-            <!-- 提示信息 -->
-            <div class="col-md-12 mb-4">
-                <div class="alert alert-info">
-                    <i class="bi bi-info-circle-fill me-2"></i>
-                    阈值说明：
-                    <ul>
-                        <li>对于需要保持高值的属性（如饱腹度），设置<strong>低于阈值</strong>时提醒</li>
-                        <li>对于需要保持低值的属性（如疲劳度），设置<strong>高于阈值</strong>时提醒</li>
-                        <li>移动滑块或直接输入数值来调整阈值</li>
-                    </ul>
-                </div>
-            </div>
-
             <!-- 生理需求属性 -->
             <div class="col-md-4">
                 <div class="card">
@@ -202,78 +413,71 @@
                 </div>
             </div>
         </div>
-
-        <!-- 保存按钮 -->
-        <div class="row mt-4">
-            <div class="col-md-12 text-center">
-                <button id="save-thresholds" class="btn btn-primary btn-lg">
-                    <i class="bi bi-save me-2"></i>保存设置
-                </button>
-            </div>
-        </div>
     </div>
 
     <!-- 提醒信息容器 -->
     <div class="alert-container" id="alert-container"></div>
-
+    <div class="footer">
+        <p>© 2025 地球Online看板 - 保持健康，享受生活</p>
+    </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // 属性标签映射
         const metricLabels = {
-            hunger: "饱腹度",
-            thirst: "口渴度",
-            toilet: "如厕需求",
-            social: "社交需求",
-            fatigue: "疲惫度",
-            hygiene: "卫生状况",
-            fitness: "瘦身指数",
-            happiness: "幸福感",
-            achievement: "成就感",
-            eyeFatigue: "视疲劳",
-            sleepQuality: "睡眠质量",
-            heartHealth: "心脏健康度",
-            muscle: "肌肉强度",
-            agility: "敏捷度",
-            resistance: "抗击打能力",
-            timeControl: "时间掌控度",
-            creativity: "创造力",
-            security: "安全感"
+            hunger: "🍔 饱腹度",
+            thirst: "💧 口渴度",
+            toilet: "🚽 如厕需求",
+            social: "👥 社交需求",
+            fatigue: "😴 疲惫度",
+            hygiene: "🧼 卫生状况",
+            fitness: "💪 瘦身指数",
+            happiness: "😊 幸福感",
+            achievement: "🏆 成就感",
+            eyeFatigue: "👁️ 视疲劳",
+            sleepQuality: "💤 睡眠质量",
+            heartHealth: "❤️ 心脏健康度",
+            muscle: "💪 肌肉强度",
+            agility: "🏃 敏捷度",
+            resistance: "🛡️ 抗击打能力",
+            timeControl: "⏰ 时间掌控度",
+            creativity: "🎨 创造力",
+            security: "🔒 安全感"
         };
 
-        // 属性提醒类型（高阈值/低阈值）
+        // 属性提醒类型（统一改为低阈值）
         const metricThresholdTypes = {
-            hunger: "low",      // 低于阈值时提醒（需要保持高值）
-            thirst: "low",      // 低于阈值时提醒
-            toilet: "high",     // 高于阈值时提醒（需要保持低值）
-            social: "low",      // 低于阈值时提醒
-            fatigue: "high",    // 高于阈值时提醒
-            hygiene: "low",     // 低于阈值时提醒
-            fitness: "low",     // 低于阈值时提醒
-            happiness: "low",   // 低于阈值时提醒
-            achievement: "low", // 低于阈值时提醒
-            eyeFatigue: "high", // 高于阈值时提醒
-            sleepQuality: "low",// 低于阈值时提醒
-            heartHealth: "low", // 低于阈值时提醒
-            muscle: "low",      // 低于阈值时提醒
-            agility: "low",     // 低于阈值时提醒
-            resistance: "low",  // 低于阈值时提醒
-            timeControl: "low", // 低于阈值时提醒
-            creativity: "low",  // 低于阈值时提醒
-            security: "low"     // 低于阈值时提醒
+            hunger: "low",
+            thirst: "low",
+            toilet: "low",
+            social: "low",
+            fatigue: "low",
+            hygiene: "low",
+            fitness: "low",
+            happiness: "low",
+            achievement: "low",
+            eyeFatigue: "low",
+            sleepQuality: "low",
+            heartHealth: "low",
+            muscle: "low",
+            agility: "low",
+            resistance: "low",
+            timeControl: "low",
+            creativity: "low",
+            security: "low"
         };
 
         // 默认的阈值设置
         const defaultThresholds = {
             hunger: 20,
             thirst: 20,
-            toilet: 80,
+            toilet: 20,
             social: 30,
-            fatigue: 80,
+            fatigue: 20,
             hygiene: 30,
             fitness: 30,
             happiness: 30,
             achievement: 30,
-            eyeFatigue: 80,
+            eyeFatigue: 20,
             sleepQuality: 30,
             heartHealth: 30,
             muscle: 30,
@@ -334,17 +538,16 @@
             keys.forEach(key => {
                 const label = metricLabels[key] || key;
                 const value = currentThresholds[key];
-                const thresholdType = metricThresholdTypes[key];
-                const thresholdText = thresholdType === 'low' ? '低于' : '高于';
 
                 const thresholdGroup = document.createElement('div');
-                thresholdGroup.className = 'mb-3';
+                thresholdGroup.className = 'threshold-input-group';
                 thresholdGroup.innerHTML = `
-                    <label class="form-label">${label} <small>(${thresholdText}时提醒)</small></label>
-                    <div class="threshold-input-group">
+                    <label class="form-label">${label}</label>
+                    <div class="d-flex align-items-center w-100">
                         <input type="range" class="form-range" id="${key}-range" 
                             min="0" max="100" step="1" value="${value}" 
-                            oninput="updateThresholdValue('${key}', this.value)">
+                            oninput="updateThresholdValue('${key}', this.value)"
+                            style="--value: ${value}%;">
                         <input type="number" class="form-control" id="${key}-value" 
                             min="0" max="100" value="${value}" 
                             oninput="updateThresholdRange('${key}', this.value)">
@@ -357,6 +560,7 @@
         // 更新滑块值
         function updateThresholdValue(key, value) {
             document.getElementById(`${key}-value`).value = value;
+            document.getElementById(`${key}-range`).style.setProperty('--value', value + '%');
             currentThresholds[key] = parseInt(value);
         }
 
@@ -364,6 +568,7 @@
         function updateThresholdRange(key, value) {
             value = Math.max(0, Math.min(100, parseInt(value) || 0));
             document.getElementById(`${key}-range`).value = value;
+            document.getElementById(`${key}-range`).style.setProperty('--value', value + '%');
             document.getElementById(`${key}-value`).value = value;
             currentThresholds[key] = value;
         }
@@ -396,6 +601,12 @@
             const alertContainer = document.getElementById('alert-container');
             const alert = document.createElement('div');
             alert.className = `alert alert-${type} alert-dismissible fade show`;
+            alert.style.background = 'rgba(10, 25, 47, 0.8)';
+            alert.style.border = '1px solid rgba(100, 255, 218, 0.3)';
+            alert.style.color = '#64ffda';
+            alert.style.borderRadius = '10px';
+            alert.style.boxShadow = '0 0 20px rgba(100, 255, 218, 0.1)';
+            
             alert.innerHTML = `
                 ${message}
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>

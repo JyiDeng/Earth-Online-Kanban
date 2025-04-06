@@ -764,12 +764,12 @@ function handleFooterButtonClick(buttonText) {
         case '事件':
             showEventWindow();
             break;
-        case '训练模型(事件对应属性增减)':
-            trainModel();
-            break;
-        case '分析趋势':
-            analyzeTrends();
-            break;
+        // case '训练模型(事件对应属性增减)':
+        //     trainModel();
+        //     break;
+        // case '分析趋势':
+        //     analyzeTrends();
+        //     break;
         case '同步健康数据':
             loadHealthData();
             break;

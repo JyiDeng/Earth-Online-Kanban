@@ -52,6 +52,7 @@ try:
     os.environ["GOOGLE_CSE_ID"] = "123"
     os.environ["GOOGLE_API_KEY"] = "123-123"
     os.environ["OPENAI_API_KEY"] = "sk-123"
+
     os.environ["http_proxy"] = "http://localhost:7890"
     os.environ["https_proxy"] = "http://localhost:7890"
     
@@ -695,6 +696,11 @@ def calculate_event_impact():
 @app.route('/thresholds')
 def thresholds_page():
     return send_file('thresholds.html')
+
+# 趋势图页面
+@app.route('/trends')
+def trends_page():
+    return send_file('trends.html')
 
 # 服务根目录
 @app.route('/')

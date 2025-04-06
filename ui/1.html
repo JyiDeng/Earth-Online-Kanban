@@ -188,13 +188,14 @@
   <footer class="footer">
     <button>设置</button>
     <button onclick="window.location.href='/event'">事件</button>
-    <button>训练模型(事件对应属性增减)</button>
-    <button>分析趋势</button>
     <button>同步健康数据</button>
-    <button>趋势图</button>
-    <button>周报</button>
-    <button>月报</button>
+    <button onclick="window.location.href='/trends'">趋势图</button>
+    <button>周报/月报</button>
     <button class="emphasize-button">重置(下次打开生效)</button>
+    
+    <div class="footer">
+      <p>© 2025 地球Online看板 - 保持健康，享受生活</p>
+  </div>
   </footer>
 
   <!-- 系统日志区域 -->
@@ -203,17 +204,11 @@
     <pre id="systemLog">已加载历史数据记录，共164个时间点</pre>
   </div>
 
-  <!-- 模态框容器 -->
-  <div id="modalContainer" class="modal-container">
-    <!-- 模态框内容将通过JavaScript动态添加 -->
-  </div>
-
-
   <!-- 语音识别状态指示器 -->
-  <div id="voiceStatus" class="voice-status">
+  <!-- <div id="voiceStatus" class="voice-status">
     <div class="voice-wave"></div>
     <span>正在录音...</span>
-  </div>
+  </div> -->
 
 </body>
 
