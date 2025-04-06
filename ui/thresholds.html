@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>健康属性阈值设置</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background-color: #f8f9fa;
+            color: #333;
+        }
+        .header {
+            background: linear-gradient(135deg, #4e54c8, #8f94fb);
+            color: white;
+            padding: 20px 0;
+            text-align: center;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        .card {
+            border-radius: 15px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+            border: none;
+            margin-bottom: 20px;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+        }
+        .card-header {
+            background: linear-gradient(to right, #f8f9fa, #e9ecef);
+            border-radius: 15px 15px 0 0 !important;
+            padding: 15px;
+            font-weight: bold;
+            color: #495057;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #4e54c8, #8f94fb);
+            border: none;
+            border-radius: 10px;
+            padding: 10px 20px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #3f43a0, #7276cb);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        .form-range {
+            height: 1.5rem;
+        }
+        .form-range::-webkit-slider-thumb {
+            background: #4e54c8;
+        }
+        .form-range::-moz-range-thumb {
+            background: #4e54c8;
+        }
+        .form-label {
+            font-weight: 500;
+            margin-top: 10px;
+        }
+        .range-value {
+            font-weight: bold;
+            color: #4e54c8;
+            width: 50px;
+            text-align: center;
+        }
+        .navbar {
+            background: linear-gradient(135deg, #4e54c8, #8f94fb);
+        }
+        .navbar-brand {
+            font-weight: bold;
+            color: white !important;
+        }
+        .nav-link {
+            color: rgba(255, 255, 255, 0.9) !important;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        .nav-link:hover {
+            color: white !important;
+            transform: translateY(-2px);
+        }
+        .active {
+            color: white !important;
+            border-bottom: 3px solid white;
+        }
+        .alert-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 300px;
+            z-index: 9999;
+        }
+        .threshold-input-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .threshold-input-group input[type="range"] {
+            flex-grow: 1;
+            margin-right: 10px;
+        }
+        .threshold-input-group input[type="number"] {
+            width: 70px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">健康监测系统</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">首页</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/event">事件</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/thresholds">阈值设置</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 页面标题 -->
+    <div class="header">
+        <div class="container">
+            <h1><i class="bi bi-sliders"></i> 健康属性阈值设置</h1>
+            <p class="lead">设置各健康属性的提醒阈值，当属性达到阈值时系统将发出提醒</p>
+        </div>
+    </div>
+
+    <!-- 主要内容 -->
+    <div class="container mb-5">
+        <div class="row">
+            <!-- 提示信息 -->
+            <div class="col-md-12 mb-4">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle-fill me-2"></i>
+                    阈值说明：
+                    <ul>
+                        <li>对于需要保持高值的属性（如饱腹度），设置<strong>低于阈值</strong>时提醒</li>
+                        <li>对于需要保持低值的属性（如疲劳度），设置<strong>高于阈值</strong>时提醒</li>
+                        <li>移动滑块或直接输入数值来调整阈值</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- 生理需求属性 -->
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-heart-pulse me-2"></i>生理需求
+                    </div>
+                    <div class="card-body">
+                        <div id="physiological-thresholds">
+                            <!-- 动态加载生理需求属性 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 身心状况属性 -->
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-emoji-smile me-2"></i>身心状况
+                    </div>
+                    <div class="card-body">
+                        <div id="mental-thresholds">
+                            <!-- 动态加载身心状况属性 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 能力属性 -->
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-lightning-charge me-2"></i>能力属性
+                    </div>
+                    <div class="card-body">
+                        <div id="ability-thresholds">
+                            <!-- 动态加载能力属性 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 保存按钮 -->
+        <div class="row mt-4">
+            <div class="col-md-12 text-center">
+                <button id="save-thresholds" class="btn btn-primary btn-lg">
+                    <i class="bi bi-save me-2"></i>保存设置
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 提醒信息容器 -->
+    <div class="alert-container" id="alert-container"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 属性标签映射
+        const metricLabels = {
+            hunger: "饱腹度",
+            thirst: "口渴度",
+            toilet: "如厕需求",
+            social: "社交需求",
+            fatigue: "疲惫度",
+            hygiene: "卫生状况",
+            fitness: "瘦身指数",
+            happiness: "幸福感",
+            achievement: "成就感",
+            eyeFatigue: "视疲劳",
+            sleepQuality: "睡眠质量",
+            heartHealth: "心脏健康度",
+            muscle: "肌肉强度",
+            agility: "敏捷度",
+            resistance: "抗击打能力",
+            timeControl: "时间掌控度",
+            creativity: "创造力",
+            security: "安全感"
+        };
+
+        // 属性提醒类型（高阈值/低阈值）
+        const metricThresholdTypes = {
+            hunger: "low",      // 低于阈值时提醒（需要保持高值）
+            thirst: "low",      // 低于阈值时提醒
+            toilet: "high",     // 高于阈值时提醒（需要保持低值）
+            social: "low",      // 低于阈值时提醒
+            fatigue: "high",    // 高于阈值时提醒
+            hygiene: "low",     // 低于阈值时提醒
+            fitness: "low",     // 低于阈值时提醒
+            happiness: "low",   // 低于阈值时提醒
+            achievement: "low", // 低于阈值时提醒
+            eyeFatigue: "high", // 高于阈值时提醒
+            sleepQuality: "low",// 低于阈值时提醒
+            heartHealth: "low", // 低于阈值时提醒
+            muscle: "low",      // 低于阈值时提醒
+            agility: "low",     // 低于阈值时提醒
+            resistance: "low",  // 低于阈值时提醒
+            timeControl: "low", // 低于阈值时提醒
+            creativity: "low",  // 低于阈值时提醒
+            security: "low"     // 低于阈值时提醒
+        };
+
+        // 默认的阈值设置
+        const defaultThresholds = {
+            hunger: 20,
+            thirst: 20,
+            toilet: 80,
+            social: 30,
+            fatigue: 80,
+            hygiene: 30,
+            fitness: 30,
+            happiness: 30,
+            achievement: 30,
+            eyeFatigue: 80,
+            sleepQuality: 30,
+            heartHealth: 30,
+            muscle: 30,
+            agility: 30,
+            resistance: 30,
+            timeControl: 30,
+            creativity: 30,
+            security: 30
+        };
+
+        // 当前的阈值设置
+        let currentThresholds = { ...defaultThresholds };
+
+        // 页面加载完成后执行
+        document.addEventListener('DOMContentLoaded', function() {
+            // 加载阈值设置
+            loadThresholds();
+
+            // 绑定保存按钮点击事件
+            document.getElementById('save-thresholds').addEventListener('click', saveThresholds);
+        });
+
+        // 加载阈值设置
+        function loadThresholds() {
+            fetch('/api/thresholds')
+                .then(response => response.json())
+                .then(data => {
+                    currentThresholds = { ...defaultThresholds, ...data };
+                    renderThresholds();
+                })
+                .catch(error => {
+                    console.error('加载阈值设置失败:', error);
+                    showAlert('加载阈值设置失败，将使用默认值', 'danger');
+                    renderThresholds();
+                });
+        }
+
+        // 渲染阈值设置表单
+        function renderThresholds() {
+            // 生理需求属性
+            const physiologicalKeys = ['hunger', 'thirst', 'toilet', 'social', 'fatigue', 'hygiene'];
+            renderAttributeGroup('physiological-thresholds', physiologicalKeys);
+
+            // 身心状况属性
+            const mentalKeys = ['fitness', 'happiness', 'achievement', 'eyeFatigue', 'sleepQuality', 'heartHealth'];
+            renderAttributeGroup('mental-thresholds', mentalKeys);
+
+            // 能力属性
+            const abilityKeys = ['muscle', 'agility', 'resistance', 'timeControl', 'creativity', 'security'];
+            renderAttributeGroup('ability-thresholds', abilityKeys);
+        }
+
+        // 渲染属性组
+        function renderAttributeGroup(containerId, keys) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+
+            keys.forEach(key => {
+                const label = metricLabels[key] || key;
+                const value = currentThresholds[key];
+                const thresholdType = metricThresholdTypes[key];
+                const thresholdText = thresholdType === 'low' ? '低于' : '高于';
+
+                const thresholdGroup = document.createElement('div');
+                thresholdGroup.className = 'mb-3';
+                thresholdGroup.innerHTML = `
+                    <label class="form-label">${label} <small>(${thresholdText}时提醒)</small></label>
+                    <div class="threshold-input-group">
+                        <input type="range" class="form-range" id="${key}-range" 
+                            min="0" max="100" step="1" value="${value}" 
+                            oninput="updateThresholdValue('${key}', this.value)">
+                        <input type="number" class="form-control" id="${key}-value" 
+                            min="0" max="100" value="${value}" 
+                            oninput="updateThresholdRange('${key}', this.value)">
+                    </div>
+                `;
+                container.appendChild(thresholdGroup);
+            });
+        }
+
+        // 更新滑块值
+        function updateThresholdValue(key, value) {
+            document.getElementById(`${key}-value`).value = value;
+            currentThresholds[key] = parseInt(value);
+        }
+
+        // 更新输入框值
+        function updateThresholdRange(key, value) {
+            value = Math.max(0, Math.min(100, parseInt(value) || 0));
+            document.getElementById(`${key}-range`).value = value;
+            document.getElementById(`${key}-value`).value = value;
+            currentThresholds[key] = value;
+        }
+
+        // 保存阈值设置
+        function saveThresholds() {
+            fetch('/api/thresholds', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(currentThresholds)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showAlert('阈值设置已保存', 'success');
+                } else {
+                    showAlert('保存阈值设置失败: ' + data.message, 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('保存阈值设置时出错:', error);
+                showAlert('保存阈值设置时出错', 'danger');
+            });
+        }
+
+        // 显示提醒
+        function showAlert(message, type) {
+            const alertContainer = document.getElementById('alert-container');
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type} alert-dismissible fade show`;
+            alert.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            alertContainer.appendChild(alert);
+
+            // 5秒后自动关闭
+            setTimeout(() => {
+                alert.classList.remove('show');
+                setTimeout(() => {
+                    alertContainer.removeChild(alert);
+                }, 500);
+            }, 5000);
+        }
+    </script>
+</body>
+</html> 

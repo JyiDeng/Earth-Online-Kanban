@@ -6,7 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&display=swap"
+    rel="stylesheet">
   <link rel="stylesheet" href="1.css">
   <script src="1.js" type="module"></script>
   <title>地球Online看板</title>
@@ -27,110 +28,112 @@
     <!-- 左侧数据展示区 -->
     <main class="main">
       <div class="data-display">
-        <div class="category physiological">
-          <h3>生理需求 🍽️</h3>
-          <div class="metrics">
-            <div class="metric" data-type="hunger">
-              <span class="label">饱腹度 🍚</span>
-              <progress value="0" max="100"></progress>
-              <span class="value">0%</span>
-            </div>
-            <div class="metric" data-type="thirst">
-              <span class="label">口渴度 💧</span>
-              <progress value="0" max="100"></progress>
-              <span class="value">0%</span>
-            </div>
-            <div class="metric" data-type="toilet">
-              <span class="label">如厕需求 🚽</span>
-              <progress value="0" max="100"></progress>
-              <span class="value">0%</span>
-            </div>
-            <div class="metric" data-type="social">
-              <span class="label">社交需求 👥</span>
-              <progress value="0" max="100"></progress>
-              <span class="value">0%</span>
-            </div>
-            <div class="metric" data-type="fatigue">
-              <span class="label">疲惫度 😴</span>
-              <progress value="0" max="100"></progress>
-              <span class="value">0%</span>
-            </div>
-            <div class="metric" data-type="hygiene">
-              <span class="label">卫生状况 🧼</span>
-              <progress value="0" max="100"></progress>
-              <span class="value">0%</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="category mental">
-          <h3>身心状况 🧠</h3>
-          <div class="metrics">
-            <div class="metric" data-type="fitness">
-              <span class="label">瘦身指数 💪</span>
-              <progress value="0" max="100"></progress>
-              <span class="value">0%</span>
-            </div>
-            <div class="metric" data-type="happiness">
-              <span class="label">幸福感 😊</span>
-              <progress value="0" max="100"></progress>
-              <span class="value">0%</span>
-            </div>
-            <div class="metric" data-type="achievement">
-              <span class="label">成就感 🏆</span>
-              <progress value="0" max="100"></progress>
-              <span class="value">0%</span>
-            </div>
-            <div class="metric" data-type="eyeFatigue">
-              <span class="label">视疲劳 👀</span>
-              <progress value="0" max="100"></progress>
-              <span class="value">0%</span>
-            </div>
-            <div class="metric" data-type="sleepQuality">
-              <span class="label">睡眠质量 🌙</span>
-              <progress value="0" max="100"></progress>
-              <span class="value">0%</span>
-            </div>
-            <div class="metric" data-type="heartHealth">
-              <span class="label">心脏健康度 ❤️</span>
-              <progress value="0" max="100"></progress>
-              <span class="value">0%</span>
+        <div class="data-columns">
+          <div class="category physiological">
+            <h3>生理需求 🍽️</h3>
+            <div class="metrics">
+              <div class="metric" data-type="hunger">
+                <span class="label">饱腹度 🍚</span>
+                <progress value="0" max="100"></progress>
+                <span class="value">0%</span>
+              </div>
+              <div class="metric" data-type="thirst">
+                <span class="label">口渴度 💧</span>
+                <progress value="0" max="100"></progress>
+                <span class="value">0%</span>
+              </div>
+              <div class="metric" data-type="toilet">
+                <span class="label">如厕需求 🚽</span>
+                <progress value="0" max="100"></progress>
+                <span class="value">0%</span>
+              </div>
+              <div class="metric" data-type="social">
+                <span class="label">社交需求 👥</span>
+                <progress value="0" max="100"></progress>
+                <span class="value">0%</span>
+              </div>
+              <div class="metric" data-type="fatigue">
+                <span class="label">疲惫度 😴</span>
+                <progress value="0" max="100"></progress>
+                <span class="value">0%</span>
+              </div>
+              <div class="metric" data-type="hygiene">
+                <span class="label">卫生状况 🧼</span>
+                <progress value="0" max="100"></progress>
+                <span class="value">0%</span>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div class="category ability">
-          <h3>能力属性 ⚡</h3>
-          <div class="metrics">
-            <div class="metric" data-type="muscle">
-              <span class="label">肌肉强度 💪</span>
-              <progress value="0" max="100"></progress>
-              <span class="value">0%</span>
+          <div class="category mental">
+            <h3>身心状况 🧠</h3>
+            <div class="metrics">
+              <div class="metric" data-type="fitness">
+                <span class="label">瘦身指数 💪</span>
+                <progress value="0" max="100"></progress>
+                <span class="value">0%</span>
+              </div>
+              <div class="metric" data-type="happiness">
+                <span class="label">幸福感 😊</span>
+                <progress value="0" max="100"></progress>
+                <span class="value">0%</span>
+              </div>
+              <div class="metric" data-type="achievement">
+                <span class="label">成就感 🏆</span>
+                <progress value="0" max="100"></progress>
+                <span class="value">0%</span>
+              </div>
+              <div class="metric" data-type="eyeFatigue">
+                <span class="label">视疲劳 👀</span>
+                <progress value="0" max="100"></progress>
+                <span class="value">0%</span>
+              </div>
+              <div class="metric" data-type="sleepQuality">
+                <span class="label">睡眠质量 🌙</span>
+                <progress value="0" max="100"></progress>
+                <span class="value">0%</span>
+              </div>
+              <div class="metric" data-type="heartHealth">
+                <span class="label">心脏健康度 ❤️</span>
+                <progress value="0" max="100"></progress>
+                <span class="value">0%</span>
+              </div>
             </div>
-            <div class="metric" data-type="agility">
-              <span class="label">敏捷度 🏃</span>
-              <progress value="0" max="100"></progress>
-              <span class="value">0%</span>
-            </div>
-            <div class="metric" data-type="resistance">
-              <span class="label">抗击打能力 🛡️</span>
-              <progress value="0" max="100"></progress>
-              <span class="value">0%</span>
-            </div>
-            <div class="metric" data-type="timeControl">
-              <span class="label">时间掌控度 ⏰</span>
-              <progress value="0" max="100"></progress>
-              <span class="value">0%</span>
-            </div>
-            <div class="metric" data-type="creativity">
-              <span class="label">创造力 🎨</span>
-              <progress value="0" max="100"></progress>
-              <span class="value">0%</span>
-            </div>
-            <div class="metric" data-type="security">
-              <span class="label">安全感 🔒</span>
-              <progress value="0" max="100"></progress>
-              <span class="value">0%</span>
+          </div>
+
+          <div class="category ability">
+            <h3>能力属性 ⚡</h3>
+            <div class="metrics">
+              <div class="metric" data-type="muscle">
+                <span class="label">肌肉强度 💪</span>
+                <progress value="0" max="100"></progress>
+                <span class="value">0%</span>
+              </div>
+              <div class="metric" data-type="agility">
+                <span class="label">敏捷度 🏃</span>
+                <progress value="0" max="100"></progress>
+                <span class="value">0%</span>
+              </div>
+              <div class="metric" data-type="resistance">
+                <span class="label">抗击打能力 🛡️</span>
+                <progress value="0" max="100"></progress>
+                <span class="value">0%</span>
+              </div>
+              <div class="metric" data-type="timeControl">
+                <span class="label">时间掌控度 ⏰</span>
+                <progress value="0" max="100"></progress>
+                <span class="value">0%</span>
+              </div>
+              <div class="metric" data-type="creativity">
+                <span class="label">创造力 🎨</span>
+                <progress value="0" max="100"></progress>
+                <span class="value">0%</span>
+              </div>
+              <div class="metric" data-type="security">
+                <span class="label">安全感 🔒</span>
+                <progress value="0" max="100"></progress>
+                <span class="value">0%</span>
+              </div>
             </div>
           </div>
         </div>
@@ -145,18 +148,28 @@
         <div class="panel ai-analysis">
           <h2>AI状态分析</h2>
           <button class="gradient-button">AI分析当前状态</button>
-          <button>放大查看</button>
+          <button class="gradient-button" onclick="window.location.href='/thresholds'">设置阈值</button>
+          <!-- <button>放大查看</button> -->
+          <div class="ai-loading-indicator" id="aiLoadingIndicator" style="display: none;">
+            <div class="spinner"></div>
+            <p>AI分析中，请稍候...</p>
+          </div>
+          <div class="ai-result" id="aiResult">
+            <p class="placeholder-text">点击"AI分析当前状态"按钮获取分析结果</p>
+          </div>
         </div>
-        <!-- 阈值提醒设置面板 -->
-        <div class="panel threshold-settings">
+  </div>
+  <!-- 阈值提醒设置面板 -->
+  <!-- <div class="panel threshold-settings">
           <h2>阈值提醒设置</h2>
-          <button class="gradient-button">设置阈值提醒</button>
-          <button>放大查看</button>
-        </div>
-      </section>
+          <button class="gradient-button">设置阈值提醒</button>-->
+          <!-- <button>放大查看</button> -->
+  
+  </div> 
+  </section>
 
-      <!-- AI分析结果输出框 -->
-      <div class="ai-output-container">
+  <!-- AI分析结果输出框 -->
+  <!-- <div class="ai-output-container">
         <h2>AI分析结果</h2>
         <div class="ai-output-content" id="aiOutputContent">
           <div class="ai-loading-indicator" id="aiLoadingIndicator" style="display: none;">
@@ -167,8 +180,8 @@
             <p class="placeholder-text">点击"AI分析当前状态"按钮获取分析结果</p>
           </div>
         </div>
-      </div>
-    </section>
+      </div> -->
+  </section>
   </div>
 
   <!-- 底部功能区 -->

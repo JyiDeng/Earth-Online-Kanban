@@ -214,79 +214,59 @@ function updateUI() {
 }
 
 // 更新单个指标显示
-function updateMetric(category, key, value) {
+function updateMetric(category, key, value, highlight = false) {
     try {
         const metricElement = document.querySelector(`.${category} .metric[data-type="${key}"]`);
         if (!metricElement) {
-            console.warn(`未找到指标元素: ${category} ${key}`);
             return;
         }
         
-        // 处理原生progress元素
-        const progressElement = metricElement.querySelector('progress');
-        const valueElement = metricElement.querySelector('.value');
+        const progressBar = metricElement.querySelector('progress');
+        const valueDisplay = metricElement.querySelector('.value');
         
-        if (progressElement) {
-            progressElement.value = value;
-            // 添加自定义样式属性来控制渐变效果
-            progressElement.style.setProperty('--progress-value', `${value}%`);
+        if (progressBar) {
+            progressBar.value = value;
         }
         
-        if (valueElement) {
-            valueElement.textContent = `${Math.round(value)}%`;
-        }
-        
-        // 检查并处理自定义进度条
-        let customProgressContainer = metricElement.querySelector('.custom-progress-container');
-        let customProgressBar = null;
-        
-        // 如果没有自定义进度条，创建一个
-        if (!customProgressContainer) {
-            // 创建自定义进度条容器
-            customProgressContainer = document.createElement('div');
-            customProgressContainer.className = 'custom-progress-container';
+        if (valueDisplay) {
+            valueDisplay.textContent = `${Math.round(value)}%`;
             
-            // 创建自定义进度条
-            customProgressBar = document.createElement('div');
-            customProgressBar.className = 'custom-progress-bar';
-            
-            // 添加到容器中
-            customProgressContainer.appendChild(customProgressBar);
-            
-            // 在progress元素之后插入自定义进度条
-            if (progressElement && progressElement.parentNode) {
-                progressElement.style.display = 'none'; // 隐藏原生progress
-                progressElement.parentNode.insertBefore(customProgressContainer, progressElement.nextSibling);
-            } else {
-                // 如果没有找到progress元素，直接添加到metric元素中
-                metricElement.appendChild(customProgressContainer);
+            // 应用突出显示效果
+            if (highlight) {
+                // 移除之前的突出显示类
+                valueDisplay.classList.remove('highlight-value');
+                
+                // 触发重新绘制以重置动画
+                void valueDisplay.offsetWidth;
+                
+                // 添加突出显示类
+                valueDisplay.classList.add('highlight-value');
+                
+                // 一定时间后移除高亮效果
+                setTimeout(() => {
+                    valueDisplay.classList.remove('highlight-value');
+                }, 2000);
             }
-        } else {
-            customProgressBar = customProgressContainer.querySelector('.custom-progress-bar');
         }
         
-        // 更新自定义进度条的宽度
-        if (customProgressBar) {
-            customProgressBar.style.width = `${value}%`;
-        }
+        // 添加数据属性以便CSS通过它控制进度条的渐变位置
+        metricElement.setAttribute('data-value', Math.round(value));
         
-        // 根据值的范围设置显示样式
+        // 更新指标样式
         updateMetricStyle(metricElement, value);
-        
     } catch (error) {
-        console.error(`更新指标 ${category}.${key} 显示时出错:`, error);
+        console.error(`更新指标 ${category}.${key} 失败:`, error);
     }
 }
 
 // 根据值的范围设置指标显示样式
 function updateMetricStyle(element, value) {
-    // 移除所有可能的样式类
+    // 根据值的范围设置显示样式
     element.classList.remove('critical', 'warning', 'good');
     
-    // 根据值设置适当的样式类
-    if (value < 30) {
+    if (value <= 30) {
         element.classList.add('critical');
-    } else if (value < 50) {
+    } else if (value <= 60) {
         element.classList.add('warning');
     } else {
         element.classList.add('good');
@@ -326,19 +306,63 @@ function startAutoSync() {
 async function syncHealthData() {
     try {
         console.log('开始同步健康数据...');
+        
+        // 检查健康数据是否存在，如果不存在则加载
+        if (!healthData) {
+            console.log('健康数据不存在，尝试加载...');
+            await loadHealthData();
+        }
+        
+        if (!healthData) {
+            console.error('无法加载健康数据，同步失败');
+            return;
+        }
+        
+        console.log('开始同步到服务器:', healthData);
+        
+        // 记录同步前的值，用于比较变化
+        const previousValues = {};
+        for (const category in healthData) {
+            previousValues[category] = {};
+            for (const key in healthData[category]) {
+                previousValues[category][key] = Math.round(healthData[category][key]);
+            }
+        }
+        
+        // 调用API同步数据
         const response = await apiService.syncHealthData(healthData);
         console.log('同步响应:', response);
         
-        if (response && response.status === 'success') {
-            lastSyncTime = new Date();
-            updateTimeDisplay();
-            console.log('健康数据同步成功');
+        // 如果返回了更新后的数据，更新本地数据
+        if (response && response.data) {
+            console.log('服务器返回了更新后的数据，更新本地数据');
+            // 使用服务器返回的数据更新本地数据
+            healthData = response.data;
             
-            // 重新加载健康数据以确保显示最新状态
-            await loadHealthData();
+            // 更新UI
+            for (const category in healthData) {
+                for (const key in healthData[category]) {
+                    const newValue = healthData[category][key];
+                    const oldValue = previousValues[category][key];
+                    const newRounded = Math.round(newValue);
+                    
+                    // 如果四舍五入后的整数部分发生变化，添加突出显示效果
+                    const highlight = newRounded !== oldValue;
+                    updateMetric(category, key, newValue, highlight);
+                }
+            }
+            
+            console.log('数据和UI已更新');
+        } else {
+            console.log('服务器未返回更新数据，使用当前数据更新UI');
+            // 更新UI显示
+            updateUI();
         }
+        
+        return true;
     } catch (error) {
         console.error('同步健康数据失败:', error);
+        return false;
     }
 }
 
@@ -930,6 +954,7 @@ async function analyzeWithAI() {
             // 如果有直接内容，显示它
             if (analysis.content) {
                 try {
+                    console.log('分析结果:', analysis.content);
                     // 尝试解析JSON
                     const jsonContent = JSON.parse(analysis.content);
                     contentHTML += `<div class="ai-analysis-summary">
@@ -987,6 +1012,9 @@ async function analyzeWithAI() {
             contentHTML += `<div class="analysis-timestamp">分析时间: ${new Date().toLocaleString('zh-CN')}</div>`;
             
             aiResult.innerHTML = contentHTML;
+            
+            // 确保结果区域可见
+            aiResult.scrollTop = 0;
         }
 
         // 在系统日志中也显示分析完成的提示

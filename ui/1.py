@@ -19,6 +19,14 @@ import sys
 from langchain_community.chat_models.baidu_qianfan_endpoint import QianfanChatEndpoint
 from langchain_core.messages import HumanMessage
 
+# Agent imports
+from langchain.agents import load_tools
+from langchain.agents import initialize_agent
+from langchain.agents import Tool
+from langchain.utilities import GoogleSearchAPIWrapper
+from langchain.utilities import TextRequestsWrapper
+from langchain_openai import ChatOpenAI
+
 app = Flask(__name__, static_folder='.', static_url_path='')
 CORS(app)
 
@@ -30,19 +38,55 @@ SETTINGS_FILE = os.path.join(DATA_DIR, 'settings.json')
 THRESHOLDS_FILE = os.path.join(DATA_DIR, 'thresholds.json')
 HISTORY_FILE = os.path.join(DATA_DIR, 'history.json')
 MODEL_FILE = os.path.join(DATA_DIR, 'model.json')
+ATTRIBUTE_CHANGE_FILE = os.path.join(DATA_DIR, 'attribute_changes.json')
 
 # 确保数据目录存在
 os.makedirs(DATA_DIR, exist_ok=True)
 
-# 导入千帆大模型
-import sys
-import os
 # 添加langchain目录到系统路径
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'langchain'))
+
+# 初始化OpenAI代理
+try:
+    # 设置OpenAI API密钥和代理
+    os.environ["GOOGLE_CSE_ID"] = "123"
+    os.environ["GOOGLE_API_KEY"] = "123-123"
+    os.environ["OPENAI_API_KEY"] = "sk-123"
+    os.environ["http_proxy"] = "http://localhost:7890"
+    os.environ["https_proxy"] = "http://localhost:7890"
+    
+    # 初始化LLM模型
+    llm = ChatOpenAI(temperature=0, model_name='gpt-3.5-turbo', base_url="https://api.gptsapi.net/v1")
+    
+    # 初始化工具
+    search = GoogleSearchAPIWrapper()
+    requests = TextRequestsWrapper()
+    
+    toolkit = [
+        Tool(
+            name = "Search",
+            func=search.run,
+            description="useful for when you need to search google to answer questions about current events"
+        ),
+        Tool(
+            name = "Requests",
+            func=requests.get,
+            description="Useful for when you to make a request to a URL"
+        ),
+    ]
+    
+    # 初始化代理
+    agent = initialize_agent(toolkit, llm, agent="zero-shot-react-description", verbose=True, return_intermediate_steps=True)
+    OPENAI_AVAILABLE = True
+    print("OpenAI代理已加载")
+except ImportError:
+    OPENAI_AVAILABLE = False
+    print("OpenAI代理导入失败，将使用模拟响应")
+
+# 导入千帆大模型
 try:
     from langchain_community.chat_models import QianfanChatEndpoint
     from langchain_core.messages import HumanMessage
-    import os
     QIANFAN_AVAILABLE = True
     # 设置千帆API密钥
     os.environ["QIANFAN_AK"] = "g6MdHGaXwbPy3Stt55UYIAoP"
@@ -250,7 +294,7 @@ def simulate_data_change(data):
                     # 应用变化并确保值在0-100之间
                     new_value = max(0, min(100, current_value + change))
                     modified_data[category][key] = new_value
-                    print(f"属性 {category}.{key} 从 {current_value:.2f} 变化 {change:+.2f}, 新值: {new_value:.2f}")
+                    # print(f"属性 {category}.{key} 从 {current_value:.2f} 变化 {change:+.2f}, 新值: {new_value:.2f}")
                 except (ValueError, TypeError) as e:
                     print(f"警告：无法处理属性 {category}.{key} 的值 {value}: {str(e)}")
                     modified_data[category][key] = value
@@ -259,6 +303,81 @@ def simulate_data_change(data):
     except Exception as e:
         print(f"模拟数据变化时出错: {str(e)}\n{traceback.format_exc()}")
         return data  # 如果出错，返回原始数据
+
+# 属性变化追踪函数
+def track_attribute_changes(health_data):
+    """追踪属性变化，检测累计下降超过50%的属性"""
+    try:
+        # 加载历史变化数据
+        attribute_changes = load_data(ATTRIBUTE_CHANGE_FILE) or {}
+        
+        # 初始化变化数据结构
+        if not attribute_changes:
+            attribute_changes = {
+                "physiological": {},
+                "mental": {},
+                "ability": {}
+            }
+        
+        alerts = []
+        
+        # 检查每个类别的属性变化
+        for category in ["physiological", "mental", "ability"]:
+            if category not in health_data:
+                continue
+                
+            # 确保类别存在于变化记录中
+            if category not in attribute_changes:
+                attribute_changes[category] = {}
+                
+            for key, value in health_data[category].items():
+                # 初始化属性记录
+                if key not in attribute_changes[category]:
+                    attribute_changes[category][key] = {
+                        "baseline": value,
+                        "current": value,
+                        "cumulative_decrease": 0
+                    }
+                    continue
+                
+                # 获取当前记录
+                record = attribute_changes[category][key]
+                current_value = float(value)
+                previous_value = float(record["current"])
+                
+                # 更新当前值
+                record["current"] = current_value
+                
+                # 检查是否有下降
+                if current_value < previous_value:
+                    decrease = previous_value - current_value
+                    percentage_decrease = (decrease / previous_value) * 100
+                    record["cumulative_decrease"] += percentage_decrease
+                    
+                    # 检查累计下降是否超过50%
+                    if record["cumulative_decrease"] >= 50:
+                        label = get_metric_label(key)
+                        alerts.append({
+                            "category": category,
+                            "key": key,
+                            "label": label,
+                            "cumulative_decrease": record["cumulative_decrease"],
+                            "message": f"{label}属性累计下降了{record['cumulative_decrease']:.1f}%，建议关注"
+                        })
+                        # 重置累计下降计数器
+                        record["cumulative_decrease"] = 0
+                elif current_value > previous_value:
+                    # 数值上升，减少累计下降值（但不低于0）
+                    record["cumulative_decrease"] = max(0, record["cumulative_decrease"] - 10)
+        
+        # 保存更新后的变化记录
+        save_data(ATTRIBUTE_CHANGE_FILE, attribute_changes)
+        
+        return alerts
+    except Exception as e:
+        print(f"追踪属性变化错误: {str(e)}")
+        traceback.print_exc()
+        return []
 
 # 健康数据同步
 @app.route('/api/health/sync', methods=['POST'])
@@ -270,7 +389,7 @@ def sync_health_data():
             print("错误：未提供同步数据")
             return jsonify({"status": "error", "message": "未提供同步数据"}), 400
             
-        print(f"接收到的同步数据: {json.dumps(data, ensure_ascii=False)}")
+        # print(f"接收到的同步数据: {json.dumps(data, ensure_ascii=False)}")
         
         # 验证数据格式
         required_categories = ["physiological", "mental", "ability"]
@@ -316,13 +435,18 @@ def sync_health_data():
                 json.dump(history, f, indent=2, ensure_ascii=False)
             print("历史数据保存成功")
             
+            # 追踪属性变化
+            attribute_alerts = track_attribute_changes(data)
+            
             # 模拟数据小变化
             updated_data = simulate_data_change(data.copy())
             
+            # 返回包含更新后数据的响应
             return jsonify({
                 "status": "success",
                 "message": "数据同步成功",
-                "data": updated_data
+                "data": updated_data,
+                "alerts": attribute_alerts
             })
             
         except Exception as save_error:
@@ -567,6 +691,11 @@ def calculate_event_impact():
         traceback.print_exc()
         return jsonify({"status": "error", "message": str(e)}), 500
 
+# 阈值设置页面
+@app.route('/thresholds')
+def thresholds_page():
+    return send_file('thresholds.html')
+
 # 服务根目录
 @app.route('/')
 def index():
@@ -685,93 +814,82 @@ def analyze_with_ai():
             return jsonify({"status": "error", "message": "未提供健康数据"}), 400
         
         health_data = data['healthData']
-        print(f"接收到的健康数据: {json.dumps(health_data, ensure_ascii=False)}")
+        # print(f"接收到的健康数据: {json.dumps(health_data, ensure_ascii=False)}")
         
         # 格式化健康数据
         formatted_data = format_health_data_for_ai(health_data)
-        
+        print(f"格式化后的健康数据: {formatted_data}")
+        # 检测异常模式
+        abnormal_patterns = detect_abnormal_patterns(health_data)
+        print(f"检测到的异常模式: {abnormal_patterns}")
         # 构建提示词
-        prompt = f"""作为一位专业的健康顾问，请分析以下用户的健康数据并给出建议。
+        prompt = f"""作为一位专业的健康顾问，请用中文分析以下用户的健康数据并给出建议。
 
 当前健康数据:
 {formatted_data}
 
-请从以下几个方面进行分析并以JSON格式回复：
-1. 总体健康状况评估
-2. 需要重点关注的指标（数值低于50%的指标）
-3. 对于每个需要关注的指标，给出具体的改善建议
-4. 给出三条通用的健康生活建议
+识别到的异常模式:
+{abnormal_patterns}
 
-请确保返回的是合法的JSON格式，包含以下字段：
-{{
-    "总体评估": "...",
-    "需要关注的指标": [
-        {{
-            "指标名称": "...",
-            "当前值": "...",
-            "建议": "..."
-        }}
-    ],
-    "通用建议": [
-        "建议1",
-        "建议2",
-        "建议3"
-    ]
-}}"""
+请从以下几个方面进行分析，输出为json：
+1. 跨维度异常模式分析（例如卫生属性下降+成就感属性下降可能预示需要心理干预）
+2. 需要重点关注的指标（数值低于50%的指标），对于每一条给出具体的改善建议
 
-        print("开始调用千帆大模型...")
+请全程用中文回答！
+"""
+
+        print("开始调用AI进行分析...")
         print("发送的提示词:", prompt)
         
-        try:
-            # 尝试调用千帆API
-            chat = QianfanChatEndpoint(streaming=False)
-            response = chat([HumanMessage(content=prompt)])
-            content = response.content
-            print("千帆API返回结果:", content)
-            
+        # 优先使用OpenAI代理进行分析
+        if OPENAI_AVAILABLE:
             try:
-                # 尝试解析返回的JSON
-                analysis_result = json.loads(content)
+                print("使用OpenAI代理进行分析...")
+                response = agent({"input": prompt})
+                content = response['output']
+                print("OpenAI代理返回结果:", content)
                 
-                # 提取建议
-                recommendations = []
-                if "需要关注的指标" in analysis_result:
-                    for item in analysis_result["需要关注的指标"]:
-                        if "建议" in item:
-                            recommendations.append(item["建议"])
+                recommendations = extract_recommendations(content)
                 
-                if "通用建议" in analysis_result:
-                    recommendations.extend(analysis_result["通用建议"])
-                
-                response_data = {
-                    "status": "success",
-                    "content": content,
-                    "recommendations": recommendations
-                }
-                
-                print("返回的分析结果:", json.dumps(response_data, ensure_ascii=False))
-                return jsonify(response_data)
-                
-            except json.JSONDecodeError:
-                print("警告：AI返回的不是有效的JSON格式，尝试直接使用返回内容")
                 return jsonify({
                     "status": "success",
                     "content": content,
-                    "recommendations": extract_recommendations(content)
+                    "recommendations": recommendations
                 })
+            except Exception as api_error:
+                print(f"调用OpenAI代理失败: {str(api_error)}")
+                print("尝试使用千帆API作为备用...")
+        
+        # 如果OpenAI不可用或失败，尝试使用千帆API
+        if QIANFAN_AVAILABLE:
+            try:
+                print("使用千帆API进行分析...")
+                chat = QianfanChatEndpoint(streaming=False)
+                response = chat([HumanMessage(content=prompt)])
+                content = response.content
+                print("千帆API返回结果:", content)
                 
-        except Exception as api_error:
-            print(f"调用千帆API失败: {str(api_error)}")
-            print("使用模拟数据作为备用")
-            content = generate_mock_analysis(health_data)
-            recommendations = extract_recommendations(content)
-            
-            return jsonify({
-                "status": "success",
-                "content": content,
-                "recommendations": recommendations,
-                "note": "使用模拟数据（API调用失败）"
-            })
+                recommendations = extract_recommendations(content)
+                
+                return jsonify({
+                    "status": "success",
+                    "content": content,
+                    "recommendations": recommendations
+                })
+            except Exception as api_error:
+                print(f"调用千帆API失败: {str(api_error)}")
+                print("使用模拟数据作为备用")
+        
+        # 如果所有API都失败，使用模拟数据
+        content = generate_mock_analysis(health_data)
+        recommendations = extract_recommendations(content)
+        
+        return jsonify({
+            "status": "success",
+            "content": content,
+            "recommendations": recommendations,
+            "note": "使用模拟数据（API调用失败）"
+        })
             
     except Exception as e:
         error_msg = f"AI分析错误: {str(e)}\n{traceback.format_exc()}"
@@ -782,6 +900,87 @@ def analyze_with_ai():
             "content": "分析过程中出现错误，请稍后重试",
             "recommendations": ["系统暂时无法提供分析建议，请稍后再试"]
         }), 500
+
+def detect_abnormal_patterns(health_data):
+    """检测跨维度异常模式"""
+    patterns = []
+    
+    # 定义异常模式规则
+    pattern_rules = [
+        # 身心健康异常模式
+        {
+            "indicators": [("physiological", "hygiene", 40), ("mental", "achievement", 40)],
+            "description": "卫生状况与成就感同时偏低，可能预示心理健康问题"
+        },
+        {
+            "indicators": [("physiological", "fatigue", 30), ("mental", "eyeFatigue", 30)],
+            "description": "身体疲惫与眼部疲劳同时偏高，可能预示过度用眼与工作压力"
+        },
+        {
+            "indicators": [("mental", "happiness", 40), ("mental", "sleepQuality", 40)],
+            "description": "幸福感与睡眠质量同时偏低，可能预示情绪与睡眠问题"
+        },
+        {
+            "indicators": [("physiological", "social", 30), ("mental", "happiness", 40)],
+            "description": "社交需求与幸福感同时偏低，可能预示社交孤独问题"
+        },
+        {
+            "indicators": [("physiological", "hunger", 30), ("mental", "fitness", 40)],
+            "description": "饱腹度与健身指数同时偏低，可能预示饮食不规律问题"
+        }
+    ]
+    
+    # 检查每个规则
+    for rule in pattern_rules:
+        match = True
+        for category, key, threshold in rule["indicators"]:
+            if category not in health_data or key not in health_data[category]:
+                match = False
+                break
+            value = health_data[category][key]
+            if threshold < 50 and value > threshold:  # 低于阈值的指标
+                match = False
+                break
+        
+        if match:
+            patterns.append(rule["description"])
+    
+    # 检查基于用户设置的阈值的异常
+    try:
+        # 加载用户设置的阈值
+        thresholds = load_data(THRESHOLDS_FILE) or {}
+        
+        # 检查每个类别的属性是否低于阈值
+        for category in ["physiological", "mental", "ability"]:
+            if category not in health_data:
+                continue
+                
+            for key, value in health_data[category].items():
+                if key not in thresholds:
+                    continue
+                
+                threshold_value = thresholds[key]
+                label = get_metric_label(key)
+                
+                # 针对需要保持高值的属性（低阈值检查）
+                if key in ["hunger", "thirst", "social", "hygiene", "fitness", "happiness", 
+                          "achievement", "sleepQuality", "heartHealth", "muscle", "agility", 
+                          "resistance", "timeControl", "creativity", "security"]:
+                    if value <= threshold_value:
+                        patterns.append(f"{label}低于设定阈值({threshold_value})，当前值: {value:.1f}")
+                
+                # 针对需要保持低值的属性（高阈值检查）
+                elif key in ["toilet", "fatigue", "eyeFatigue"]:
+                    if value >= threshold_value:
+                        patterns.append(f"{label}高于设定阈值({threshold_value})，当前值: {value:.1f}")
+    except Exception as e:
+        print(f"基于阈值检测异常时出错: {str(e)}")
+        traceback.print_exc()
+    
+    if patterns:
+        return "\n".join(patterns)
+    else:
+        return "未检测到明显的跨维度异常模式。"
 
 def format_health_data_for_ai(health_data):
     """格式化健康数据用于AI分析"""
