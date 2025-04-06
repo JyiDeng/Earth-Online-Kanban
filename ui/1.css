@@ -88,6 +88,7 @@ body {
     background: rgba(10, 25, 47, 0.4);
     border-radius: 15px;
     transition: all 0.3s ease;
+    position: relative;
 }
 
 .metric:hover {
@@ -100,35 +101,78 @@ body {
 }
 
 .metric .label {
-    font-size: 16px;
-    color: #8892b0;
+    color: #fff;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
 }
 
 .metric .value {
     font-size: 18px;
     font-weight: bold;
     color: #64ffda;
+    margin-left: auto;
 }
 
 .metric progress {
-    width: 150px;
+    width: 100%;
     height: 8px;
     border-radius: 4px;
     -webkit-appearance: none;
     appearance: none;
-    background: rgba(100, 255, 218, 0.1);
+    --progress-value: 0%;
 }
 
 .metric progress::-webkit-progress-bar {
-    background: rgba(100, 255, 218, 0.1);
+    background-color: rgba(0, 0, 0, 0.3);
     border-radius: 4px;
 }
 
 .metric progress::-webkit-progress-value {
+    background: linear-gradient(90deg, 
+        #ff4757 0%, 
+        #ffa502 50%, 
+        #2ed573 100%
+    );
     border-radius: 4px;
-    background: linear-gradient(to right, #64ffda, #00b4d8);
-    box-shadow: 0 0 10px rgba(100, 255, 218, 0.5);
 }
+
+.metric progress::-moz-progress-bar {
+    background: linear-gradient(90deg, 
+        #ff4757 0%, 
+        #ffa502 50%, 
+        #2ed573 100%
+    );
+    border-radius: 4px;
+    position: relative;
+    background-size: 100% 100%;
+}
+
+/* 自定义进度条样式 */
+.custom-progress-container {
+    position: relative;
+    width: 100%;
+    height: 8px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 5px;
+    margin-bottom: 5px;
+}
+
+.custom-progress-bar {
+    height: 100%;
+    border-radius: 4px;
+    background: linear-gradient(90deg, 
+        #ff4757 0%, 
+        #ffa502 50%, 
+        #2ed573 100%
+    );
+    width: 0%;
+    transition: width 0.3s ease;
+}
+
+/* 在js中设置进度时，将设置此元素的宽度百分比 */
 
 /* 分析与设置区域 */
 .analysis-settings {
@@ -396,53 +440,92 @@ body {
     justify-content: space-between;
     gap: 20px;
     padding: 20px;
-    background: rgba(0, 0, 0, 0.7);
-    border-radius: 10px;
-    margin: 20px;
+    transform-style: preserve-3d;
 }
 
 .category {
     flex: 1;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
-    padding: 15px;
+    background: rgba(10, 25, 47, 0.6);
+    border-radius: 15px;
+    padding: 20px;
     min-width: 300px;
+    box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
+    border: 1px solid rgba(0, 255, 255, 0.3);
+    transition: all 0.5s ease;
+    height: auto;
+    min-height: 480px;
+    max-height: 600px;
+    overflow-y: auto;
+    animation: floatCategory 6s ease-in-out infinite;
+}
+
+.category:nth-child(1) {
+    animation-delay: 0s;
+}
+
+.category:nth-child(2) {
+    animation-delay: 1s;
+}
+
+.category:nth-child(3) {
+    animation-delay: 2s;
+}
+
+@keyframes floatCategory {
+    0% { transform: translateY(0px); }
+    50% { transform: translateY(-15px); }
+    100% { transform: translateY(0px); }
+}
+
+.category:hover {
+    transform: translateZ(30px) scale(1.02);
+    box-shadow: 0 0 30px rgba(0, 255, 255, 0.5);
 }
 
 .category h3 {
-    color: #fff;
-    text-align: center;
+    color: #64ffda;
+    font-size: 22px;
+    font-weight: 700;
     margin-bottom: 15px;
-    font-size: 1.2em;
-    text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+    text-shadow: 0 0 10px rgba(100, 255, 218, 0.3);
 }
 
 .metrics {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 10px;
+    gap: 8px;
 }
 
 .metric {
-    background: rgba(0, 0, 0, 0.3);
-    padding: 10px;
-    border-radius: 5px;
+    background: rgba(10, 25, 47, 0.4);
+    padding: 8px;
+    border-radius: 10px;
     display: flex;
     flex-direction: column;
     gap: 5px;
+    border: 1px solid rgba(0, 255, 255, 0.1);
+    transition: all 0.3s ease;
+    margin-bottom: 5px;
+}
+
+.metric:hover {
+    background: rgba(10, 25, 47, 0.6);
+    border: 1px solid rgba(0, 255, 255, 0.3);
+    box-shadow: 0 0 15px rgba(0, 255, 255, 0.2);
 }
 
 .metric .label {
     color: #fff;
-    font-size: 0.9em;
+    font-size: 18px;
+    font-weight: bold;
     display: flex;
     align-items: center;
-    gap: 5px;
 }
 
 .metric .value {
-    color: #fff;
-    font-size: 1.1em;
+    color: #64ffda;
+    font-size: 16px;
+    font-weight: bold;
     text-align: right;
 }
 
@@ -450,21 +533,70 @@ body {
     width: 100%;
     height: 8px;
     border-radius: 4px;
-    background: rgba(255, 255, 255, 0.1);
-    overflow: hidden;
+    background: rgba(0, 0, 0, 0.3);
+    -webkit-appearance: none;
+    appearance: none;
 }
 
 .metric progress::-webkit-progress-bar {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(0, 0, 0, 0.3);
     border-radius: 4px;
 }
 
 .metric progress::-webkit-progress-value {
-    background: linear-gradient(90deg, #4CAF50, #8BC34A);
+    background: linear-gradient(90deg, 
+        #ff4757 0%, 
+        #ffa502 50%, 
+        #2ed573 100%
+    );
     border-radius: 4px;
 }
 
 .metric progress::-moz-progress-bar {
-    background: linear-gradient(90deg, #4CAF50, #8BC34A);
+    background: linear-gradient(90deg, 
+        #ff4757 0%, 
+        #ffa502 50%, 
+        #2ed573 100%
+    );
     border-radius: 4px;
+}
+
+.metric.critical .value {
+    color: #ff4757;
+    text-shadow: 0 0 8px rgba(255, 71, 87, 0.5);
+}
+
+.metric.critical progress::-webkit-progress-value {
+    background: linear-gradient(90deg, #ff4757, #ff6b81);
+    box-shadow: 0 0 8px rgba(255, 71, 87, 0.5);
+}
+
+.metric.critical progress::-moz-progress-bar {
+    background: linear-gradient(90deg, #ff4757, #ff6b81);
+    box-shadow: 0 0 8px rgba(255, 71, 87, 0.5);
+}
+
+.metric.warning .value {
+    color: #ffa502;
+    text-shadow: 0 0 8px rgba(255, 165, 2, 0.5);
+}
+
+.metric.warning progress::-webkit-progress-value {
+    background: linear-gradient(90deg, #ffa502, #ffbd2e);
+    box-shadow: 0 0 8px rgba(255, 165, 2, 0.5);
+}
+
+.metric.warning progress::-moz-progress-bar {
+    background: linear-gradient(90deg, #ffa502, #ffbd2e);
+    box-shadow: 0 0 8px rgba(255, 165, 2, 0.5);
+}
+
+.metric.good .value {
+    color: #2ed573;
+    text-shadow: 0 0 8px rgba(46, 213, 115, 0.5);
+}
+
+.metric.good progress::-webkit-progress-value {
+    background: linear-gradient(90deg, #2ed573, #7bed9f);
+    box-shadow: 0 0 8px rgba(46, 213, 115, 0.5);
 }

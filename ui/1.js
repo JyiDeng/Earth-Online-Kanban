@@ -185,18 +185,112 @@ async function loadThresholds() {
     }
 }
 
+// 更新UI
+function updateUI() {
+    if (!healthData) {
+        console.warn('健康数据不可用，无法更新UI');
+        return;
+    }
 
-// 更新分类指标
-function updateCategoryMetrics(category) {
-    Object.entries(healthData[category]).forEach(([key, value]) => {
-        const element = document.querySelector(`.${category} .metric[data-type="${key}"]`);
-        if (element) {
-            const valueElement = element.querySelector('.value');
-            const progressElement = element.querySelector('progress');
-            if (valueElement) valueElement.textContent = `${Math.round(value)}%`;
-            if (progressElement) progressElement.value = value;
+    console.log('更新UI显示，当前健康数据:', healthData);
+    
+    // 更新生理需求
+    for (const [key, value] of Object.entries(healthData.physiological)) {
+        updateMetric('physiological', key, value);
+    }
+    
+    // 更新身心状况
+    for (const [key, value] of Object.entries(healthData.mental)) {
+        updateMetric('mental', key, value);
+    }
+    
+    // 更新能力属性
+    for (const [key, value] of Object.entries(healthData.ability)) {
+        updateMetric('ability', key, value);
+    }
+    
+    // 检查是否有指标值低于阈值
+    checkThresholds();
+}
+
+// 更新单个指标显示
+function updateMetric(category, key, value) {
+    try {
+        const metricElement = document.querySelector(`.${category} .metric[data-type="${key}"]`);
+        if (!metricElement) {
+            console.warn(`未找到指标元素: ${category} ${key}`);
+            return;
         }
-    });
+        
+        // 处理原生progress元素
+        const progressElement = metricElement.querySelector('progress');
+        const valueElement = metricElement.querySelector('.value');
+        
+        if (progressElement) {
+            progressElement.value = value;
+            // 添加自定义样式属性来控制渐变效果
+            progressElement.style.setProperty('--progress-value', `${value}%`);
+        }
+        
+        if (valueElement) {
+            valueElement.textContent = `${Math.round(value)}%`;
+        }
+        
+        // 检查并处理自定义进度条
+        let customProgressContainer = metricElement.querySelector('.custom-progress-container');
+        let customProgressBar = null;
+        
+        // 如果没有自定义进度条，创建一个
+        if (!customProgressContainer) {
+            // 创建自定义进度条容器
+            customProgressContainer = document.createElement('div');
+            customProgressContainer.className = 'custom-progress-container';
+            
+            // 创建自定义进度条
+            customProgressBar = document.createElement('div');
+            customProgressBar.className = 'custom-progress-bar';
+            
+            // 添加到容器中
+            customProgressContainer.appendChild(customProgressBar);
+            
+            // 在progress元素之后插入自定义进度条
+            if (progressElement && progressElement.parentNode) {
+                progressElement.style.display = 'none'; // 隐藏原生progress
+                progressElement.parentNode.insertBefore(customProgressContainer, progressElement.nextSibling);
+            } else {
+                // 如果没有找到progress元素，直接添加到metric元素中
+                metricElement.appendChild(customProgressContainer);
+            }
+        } else {
+            customProgressBar = customProgressContainer.querySelector('.custom-progress-bar');
+        }
+        
+        // 更新自定义进度条的宽度
+        if (customProgressBar) {
+            customProgressBar.style.width = `${value}%`;
+        }
+        
+        // 根据值的范围设置显示样式
+        updateMetricStyle(metricElement, value);
+        
+    } catch (error) {
+        console.error(`更新指标 ${category}.${key} 显示时出错:`, error);
+    }
+}
+
+// 根据值的范围设置指标显示样式
+function updateMetricStyle(element, value) {
+    // 移除所有可能的样式类
+    element.classList.remove('critical', 'warning', 'good');
+    
+    // 根据值设置适当的样式类
+    if (value < 30) {
+        element.classList.add('critical');
+    } else if (value < 50) {
+        element.classList.add('warning');
+    } else {
+        element.classList.add('good');
+    }
 }
 
 // 更新时间显示
@@ -204,7 +298,14 @@ function updateTimeDisplay() {
     const timeElement = document.querySelector('.time');
     if (timeElement) {
         const now = new Date();
-        timeElement.textContent = `当前时间: ${now.toLocaleString()}`;
+        const year = now.getFullYear();
+        const month = now.getMonth() + 1;
+        const day = now.getDate();
+        const hour = now.getHours().toString().padStart(2, '0');
+        const minute = now.getMinutes().toString().padStart(2, '0');
+        const second = now.getSeconds().toString().padStart(2, '0');
+        const timestamp = `${year}年${month}月${day}日 ${hour}:${minute}:${second}`;
+        timeElement.textContent = `当前时间: ${timestamp}`;
         lastSyncTime = now;
     }
 }
@@ -300,64 +401,6 @@ document.addEventListener('DOMContentLoaded', init);
 
 // 导出函数供其他模块使用
 export { handleEventUpdate };
-
-
-// 更新显示
-function updateUI() {
-    if (!healthData) return;
-
-    // 更新生理需求
-    updateCategoryMetrics('physiological');
-    // 更新身心状况
-    updateCategoryMetrics('mental');
-    // 更新能力属性
-    updateCategoryMetrics('ability');
-
-    // 更新时间显示
-    updateTimeDisplay();
-    updateProgressColors();
-}
-
-
-// function updateUI() {
-//     console.log('更新UI，当前健康数据:', healthData);
-//     if (!healthData) return;
-
-//     // 更新生理需求
-//     Object.entries(healthData.physiological).forEach(([key, value]) => {
-//         const element = document.querySelector(`.physiological .metric[data-type="${key}"]`);
-//         if (element) {
-//             const valueElement = element.querySelector('.value');
-//             const progressElement = element.querySelector('progress');
-//             if (valueElement) valueElement.textContent = `${Math.round(value)}%`;
-//             if (progressElement) progressElement.value = value;
-//         }
-//     });
-
-//     // 更新身心状况
-//     Object.entries(healthData.mental).forEach(([key, value]) => {
-//         const element = document.querySelector(`.mental .metric[data-type="${key}"]`);
-//         if (element) {
-//             const valueElement = element.querySelector('.value');
-//             const progressElement = element.querySelector('progress');
-//             if (valueElement) valueElement.textContent = `${Math.round(value)}%`;
-//             if (progressElement) progressElement.value = value;
-//         }
-//     });
-
-//     // 更新能力属性
-//     Object.entries(healthData.ability).forEach(([key, value]) => {
-//         const element = document.querySelector(`.ability .metric[data-type="${key}"]`);
-//         if (element) {
-//             const valueElement = element.querySelector('.value');
-//             const progressElement = element.querySelector('progress');
-//             if (valueElement) valueElement.textContent = `${Math.round(value)}%`;
-//             if (progressElement) progressElement.value = value;
-//         }
-//     });
-
-//     updateProgressColors();
-// }
 
 // 阈值检查
 async function checkThresholds() {
@@ -643,30 +686,16 @@ async function showThresholdSettings() {
     }
 }
 
-// 更新进度条颜色
-function updateProgressColors() {
-    document.querySelectorAll('.metric').forEach(metric => {
-        const progress = metric.querySelector('progress');
-        const value = parseInt(progress.value);
-        
-        // 移除所有颜色类
-        progress.classList.remove('progress-green', 'progress-yellow', 'progress-red');
-        
-        // 根据值添加相应的颜色类
-        if (value >= 80) {
-            progress.classList.add('progress-green');
-        } else if (value >= 50) {
-            progress.classList.add('progress-yellow');
-        } else {
-            progress.classList.add('progress-red');
-        }
-    });
-}
-
 // 显示分析结果
 function showAnalysisResult(result) {
     const logElement = document.querySelector('.log pre');
-    const timestamp = new Date().toLocaleString();
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1;
+    const day = now.getDate();
+    const hour = now.getHours().toString().padStart(2, '0');
+    const minute = now.getMinutes().toString().padStart(2, '0');
+    const timestamp = `${year}年${month}月${day}日 ${hour}:${minute}`;
     logElement.innerHTML += `\n[${timestamp}] ${result.message}`;
     logElement.scrollTop = logElement.scrollHeight;
 }
