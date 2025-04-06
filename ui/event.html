@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>事件管理</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="1.css" rel="stylesheet">
+    <style>
+        title{
+            
+            font-weight: bold;
+        }
+        .event-form {
+            background: rgba(10, 25, 47, 0.6);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
+        }
+        .impact-preview {
+            background: rgba(10, 25, 47, 0.6);
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 20px;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
+        }
+        .impact-item {
+            background: rgba(10, 25, 47, 0.6);
+            border-radius: 10px;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid rgba(0, 255, 255, 0.3);
+        }
+        .correction-input {
+            background: rgba(10, 25, 47, 0.6);
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            color: #0ff;
+            padding: 5px;
+            border-radius: 5px;
+            width: 60px;
+        }
+        .event-history {
+            background: rgba(10, 25, 47, 0.6);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
+        }
+        .event-card {
+            background: rgba(10, 25, 47, 0.6);
+            border-radius: 10px;
+            padding: 15px;
+            margin: 10px 0;
+            border: 1px solid rgba(0, 255, 255, 0.3);
+        }
+        .gradient-button {
+            font-weight: bold;
+            background: linear-gradient(to right, #64ffda, #00b4d8);
+            border: none;
+            color: black;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .gradient-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h1 class="text-center">事件管理</h1>
+            <button class="gradient-button" onclick="window.location.href='/'">返回主页</button>
+        </div>
+        
+        <div class="event-form">
+            <h2 class="text-center mb-4">添加新事件</h2>
+            <form id="eventForm">
+                <div class="mb-3">
+                    <label class="form-label">事件类型</label>
+                    <select class="form-select" name="type" required>
+                        <option value="">请选择事件类型</option>
+                        <option value="学习">学习</option>
+                        <option value="运动">运动</option>
+                        <option value="睡觉">睡觉</option>
+                        <option value="社交">社交</option>
+                        <option value="饮食">饮食</option>
+                        <option value="娱乐">娱乐</option>
+                        <option value="工作">工作</option>
+                        <option value="休息">休息</option>
+                        <option value="如厕">如厕</option>
+                        <option value="展览/讲座">展览/讲座</option>
+                        <option value="复盘/冥想">复盘/冥想</option>
+                        <option value="洗漱/沐浴">洗漱/沐浴</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">具体事件描述</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" name="name" required>
+                        <button class="btn btn-outline-secondary" type="button" id="micButton">🎤</button>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">持续时间(小时)</label>
+                    <input type="number" class="form-control" name="duration" value="1.0" step="0.1" min="0.1" required>
+                </div>
+                <div class="text-center">
+                    <button type="button" class="gradient-button" id="predictButton">预测影响</button>
+                    <button type="submit" class="gradient-button" id="applyButton" disabled>应用事件</button>
+                </div>
+            </form>
+
+            <div class="impact-preview" id="impactPreview" style="display: none;">
+                <h3 class="text-center mb-4">预测影响</h3>
+                <div id="impactList"></div>
+            </div>
+        </div>
+
+        <div class="event-history">
+            <h2 class="text-center mb-4">历史事件</h2>
+            <div id="eventHistory"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script type="module">
+        import * as apiService from './api.js';
+        
+        let currentImpact = null;
+        let correctionValues = {};
+        let healthData = null;
+
+        // 初始化函数
+        async function init() {
+            await loadHealthData();
+            await loadEventSuggestions();
+            loadEventHistory();
+            setupEventListeners();
+        }
+
+        // 加载健康数据
+        async function loadHealthData() {
+            try {
+                console.log('事件页面加载健康数据...');
+                const response = await apiService.getHealthData();
+                console.log('健康数据响应:', response);
+                
+                if (response && typeof response === 'object' && 
+                    response.physiological && response.mental && response.ability) {
+                    healthData = response;
+                    console.log('健康数据加载成功:', healthData);
+                    return true;
+                } else {
+                    console.warn('API返回的健康数据格式不正确，使用默认值');
+                    healthData = {
+                        physiological: {
+                            hunger: 50,
+                            thirst: 50,
+                            toilet: 50,
+                            social: 50,
+                            fatigue: 50,
+                            hygiene: 50
+                        },
+                        mental: {
+                            fitness: 50,
+                            happiness: 50,
+                            achievement: 50,
+                            eyeFatigue: 50,
+                            sleepQuality: 50,
+                            heartHealth: 50
+                        },
+                        ability: {
+                            muscle: 50,
+                            agility: 50,
+                            resistance: 50,
+                            timeControl: 50,
+                            creativity: 50,
+                            security: 50
+                        }
+                    };
+                    // 保存默认数据
+                    await apiService.syncHealthData(healthData);
+                    return false;
+                }
+            } catch (error) {
+                console.error('加载健康数据失败:', error);
+                healthData = {
+                    physiological: {
+                        hunger: 50,
+                        thirst: 50,
+                        toilet: 50,
+                        social: 50,
+                        fatigue: 50,
+                        hygiene: 50
+                    },
+                    mental: {
+                        fitness: 50,
+                        happiness: 50,
+                        achievement: 50,
+                        eyeFatigue: 50,
+                        sleepQuality: 50,
+                        heartHealth: 50
+                    },
+                    ability: {
+                        muscle: 50,
+                        agility: 50,
+                        resistance: 50,
+                        timeControl: 50,
+                        creativity: 50,
+                        security: 50
+                    }
+                };
+                return false;
+            }
+        }
+
+        // 设置事件监听器
+        function setupEventListeners() {
+            // 预测按钮
+            document.getElementById('predictButton').addEventListener('click', predictImpact);
+            
+            // 应用按钮
+            document.getElementById('applyButton').addEventListener('click', applyEvent);
+            
+            // 阻止表单默认提交
+            document.getElementById('eventForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                applyEvent();
+            });
+        }
+
+        // 加载事件建议
+        async function loadEventSuggestions() {
+            try {
+                const suggestions = await apiService.getEventSuggestions();
+                const typeSelect = document.querySelector('select[name="type"]');
+                typeSelect.addEventListener('change', async (e) => {
+                    const type = e.target.value;
+                    if (type && suggestions[type]) {
+                        const nameInput = document.querySelector('input[name="name"]');
+                        nameInput.value = suggestions[type][Math.floor(Math.random() * suggestions[type].length)];
+                    }
+                });
+            } catch (error) {
+                console.error('加载事件建议失败:', error);
+            }
+        }
+
+        // 预测事件影响
+        async function predictImpact() {
+            if (!healthData) {
+                console.error('健康数据未加载，无法预测影响');
+                await loadHealthData();
+                if (!healthData) {
+                    alert('无法加载健康数据，请刷新页面重试');
+                    return;
+                }
+            }
+
+            const form = document.getElementById('eventForm');
+            const formData = new FormData(form);
+            const eventData = {
+                type: formData.get('type'),
+                name: formData.get('name'),
+                duration: parseFloat(formData.get('duration'))
+            };
+
+            console.log('预测事件影响:', eventData);
+
+            try {
+                const result = await apiService.calculateEventImpact(eventData);
+                console.log('事件影响预测结果:', result);
+                
+                if (result && result.impact && Object.keys(result.impact).length > 0) {
+                    currentImpact = result.impact;
+                    displayImpact(result.impact);
+                    document.getElementById('applyButton').disabled = false;
+                } else {
+                    console.error('预测结果为空或无效');
+                    alert('预测结果为空，请尝试其他事件类型');
+                }
+            } catch (error) {
+                console.error('预测影响失败:', error);
+                alert('预测影响失败，请检查输入');
+            }
+        }
+
+        // 显示影响预测结果
+        function displayImpact(impact) {
+            const impactList = document.getElementById('impactList');
+            impactList.innerHTML = '';
+            
+            for (const [metric, data] of Object.entries(impact)) {
+                const item = document.createElement('div');
+                item.className = 'impact-item';
+                item.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>${metric}: ${data.current.toFixed(1)} → ${data.new.toFixed(1)} (${data.change > 0 ? '+' : ''}${data.change.toFixed(1)})</span>
+                        <div>
+                            <input type="number" class="correction-input" 
+                                   value="${data.change.toFixed(1)}" 
+                                   data-metric="${metric}">
+                            <span>%</span>
+                        </div>
+                    </div>
+                `;
+                impactList.appendChild(item);
+                correctionValues[metric] = data.change;
+            }
+            
+            // 添加修正值输入框的事件监听
+            document.querySelectorAll('.correction-input').forEach(input => {
+                input.addEventListener('change', function() {
+                    const metric = this.getAttribute('data-metric');
+                    updateCorrection(metric, this.value);
+                });
+            });
+            
+            document.getElementById('impactPreview').style.display = 'block';
+        }
+
+        // 更新修正值
+        function updateCorrection(metric, value) {
+            correctionValues[metric] = parseFloat(value);
+        }
+
+        // 应用事件
+        async function applyEvent() {
+            if (!currentImpact || Object.keys(currentImpact).length === 0) {
+                alert('请先预测事件影响');
+                return;
+            }
+
+            const form = document.getElementById('eventForm');
+            const formData = new FormData(form);
+            const eventData = {
+                type: formData.get('type'),
+                name: formData.get('name'),
+                duration: parseFloat(formData.get('duration')),
+                corrections: correctionValues
+            };
+
+            try {
+                console.log('创建事件:', eventData);
+                // 创建事件
+                const response = await apiService.createEvent(eventData);
+                console.log('事件创建响应:', response);
+                
+                // 应用事件影响到健康数据
+                if (!healthData) {
+                    const loaded = await loadHealthData();
+                    if (!loaded) {
+                        alert('无法加载健康数据，请刷新页面重试');
+                        return;
+                    }
+                }
+                
+                console.log('应用前的健康数据:', JSON.stringify(healthData));
+                
+                // 更新健康数据
+                let hasChanges = false;
+                for (const [metric, data] of Object.entries(currentImpact)) {
+                    const category = getMetricCategory(metric);
+                    if (category && healthData[category] && metric in healthData[category]) {
+                        const change = correctionValues[metric] !== undefined ? correctionValues[metric] : data.change;
+                        healthData[category][metric] = Math.max(0, Math.min(100, healthData[category][metric] + change));
+                        hasChanges = true;
+                    }
+                }
+                
+                if (!hasChanges) {
+                    console.warn('没有健康数据被更新，可能是因为指标映射问题');
+                }
+                
+                console.log('应用后的健康数据:', JSON.stringify(healthData));
+                
+                // 同步更新后的健康数据
+                console.log('同步更新后的健康数据:', healthData);
+                const syncResult = await apiService.syncHealthData(healthData);
+                console.log('同步结果:', syncResult);
+                
+                // 确保数据已经保存到服务器
+                if (syncResult && syncResult.status === 'success') {
+                    alert('事件已成功应用，即将返回主页');
+                    // 重置表单和状态
+                    form.reset();
+                    document.getElementById('impactPreview').style.display = 'none';
+                    document.getElementById('applyButton').disabled = true;
+                    currentImpact = null;
+                    correctionValues = {};
+                    
+                    // 延迟一秒后返回主页，确保服务器有时间处理数据
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 1000);
+                } else {
+                    alert('数据同步可能失败，请手动返回主页并刷新查看更新');
+                }
+            } catch (error) {
+                console.error('应用事件失败:', error);
+                alert('应用事件失败，请重试');
+            }
+        }
+
+        // 获取指标类别
+        function getMetricCategory(metric) {
+            const physiological = ['hunger', 'thirst', 'toilet', 'social', 'fatigue', 'hygiene'];
+            const mental = ['fitness', 'happiness', 'achievement', 'eyeFatigue', 'sleepQuality', 'heartHealth'];
+            const ability = ['muscle', 'agility', 'resistance', 'timeControl', 'creativity', 'security'];
+            
+            if (physiological.includes(metric)) return 'physiological';
+            if (mental.includes(metric)) return 'mental';
+            if (ability.includes(metric)) return 'ability';
+            return null;
+        }
+
+        // 加载事件历史
+        async function loadEventHistory() {
+            try {
+                const events = await apiService.getEvents();
+                const historyContainer = document.getElementById('eventHistory');
+                historyContainer.innerHTML = '';
+                
+                if (events && events.length > 0) {
+                    events.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 10).forEach(event => {
+                        const card = document.createElement('div');
+                        card.className = 'event-card';
+                        card.innerHTML = `
+                            <h5>${event.name}</h5>
+                            <p>类型: ${event.type}</p>
+                            <p>持续时间: ${event.duration}小时</p>
+                            <p>时间: ${new Date(event.timestamp).toLocaleString()}</p>
+                        `;
+                        historyContainer.appendChild(card);
+                    });
+                } else {
+                    historyContainer.innerHTML = '<p class="text-center">暂无历史事件</p>';
+                }
+            } catch (error) {
+                console.error('加载事件历史失败:', error);
+            }
+        }
+
+        // 初始化语音识别
+        function initSpeechRecognition() {
+            const micButton = document.getElementById('micButton');
+            micButton.addEventListener('click', async () => {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    const mediaRecorder = new MediaRecorder(stream);
+                    const audioChunks = [];
+
+                    mediaRecorder.addEventListener('dataavailable', event => {
+                        audioChunks.push(event.data);
+                    });
+
+                    mediaRecorder.addEventListener('stop', async () => {
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                        const formData = new FormData();
+                        formData.append('audio', audioBlob);
+
+                        try {
+                            const response = await fetch('/api/speech/record', {
+                                method: 'POST',
+                                body: formData
+                            });
+                            const result = await response.json();
+                            if (result.text) {
+                                document.querySelector('input[name="name"]').value = result.text;
+                            }
+                        } catch (error) {
+                            console.error('语音识别失败:', error);
+                        }
+                    });
+
+                    mediaRecorder.start();
+                    micButton.textContent = '⏺';
+                    setTimeout(() => {
+                        mediaRecorder.stop();
+                        micButton.textContent = '🎤';
+                    }, 5000);
+                } catch (error) {
+                    console.error('获取麦克风权限失败:', error);
+                    alert('请允许使用麦克风');
+                }
+            });
+        }
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html> 

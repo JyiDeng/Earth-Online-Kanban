@@ -1,39 +1,35 @@
-import apiService from './api.js';
+// 恢复import语句
+import * as apiService from './api.js';
 
 // 全局变量
-let healthData = {
-    physiological: {
-        hunger: 96,
-        thirst: 86,
-        toilet: 30,
-        social: 49,
-        fatigue: 92,
-        hygiene: 50
-    },
-    mental: {
-        fitness: 40,
-        happiness: 99,
-        achievement: 49,
-        eyeFatigue: 89,
-        sleepQuality: 75,
-        heartHealth: 76
-    },
-    ability: {
-        muscle: 44,
-        agility: 49,
-        resistance: 48,
-        timeControl: 50,
-        creativity: 51,
-        security: 49
-    }
-};
+let healthData = null;
+let lastSyncTime = null;
 
 let settings = {
     syncInterval: 5,
     alertThreshold: 30
 };
 
-let thresholds = {};
+let thresholds = {
+    hunger: 20,
+    thirst: 20,
+    toilet: 80,
+    social: 30,
+    fatigue: 80,
+    hygiene: 30,
+    fitness: 30,
+    happiness: 30,
+    achievement: 30,
+    eyeFatigue: 80,
+    sleepQuality: 30,
+    heartHealth: 30,
+    muscle: 30,
+    agility: 30,
+    resistance: 30,
+    timeControl: 30,
+    creativity: 30,
+    security: 30
+};
 
 // 工具函数
 function showLoading(button) {
@@ -66,49 +62,302 @@ function showModal(content, title = '') {
     });
 }
 
-// 健康数据管理
-async function loadHealthData() {
+// 初始化
+async function init() {
     try {
-        const data = await apiService.getHealthData();
-        healthData = data;
+        console.log('开始初始化...');
+        
+        // 加载健康数据（添加时间戳，确保获取最新数据）
+        await loadHealthData();
+        
+        // 加载阈值设置
+        await loadThresholds();
+        
+        // 更新显示
         updateUI();
-        checkThresholds();
+        
+        // 开始自动同步
+        startAutoSync();
+        
+        // 添加事件监听器
+        setupEventListeners();
+        
+        // 设置在页面可见时刷新数据
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                console.log('页面变为可见，刷新数据...');
+                loadHealthData();
+            }
+        });
+        
+        // 在恢复焦点时刷新数据
+        window.addEventListener('focus', () => {
+            console.log('窗口获得焦点，刷新数据...');
+            loadHealthData();
+        });
+        
+        console.log('初始化完成');
     } catch (error) {
-        console.error('加载健康数据失败:', error);
-        showAnalysisResult({ message: '加载健康数据失败，请检查网络连接' });
+        console.error('初始化失败:', error);
     }
 }
 
+// 加载健康数据
+async function loadHealthData() {
+    try {
+        console.log('开始加载健康数据...');
+        // 添加时间戳参数避免浏览器缓存
+        const timestamp = Date.now();
+        const response = await apiService.getHealthData(`?t=${timestamp}`);
+        console.log('健康数据API响应:', response);
+        
+        if (response && typeof response === 'object' && 
+            response.physiological && response.mental && response.ability) {
+            healthData = response;
+            console.log('健康数据加载成功:', healthData);
+        } else {
+            console.warn('API返回的健康数据格式不正确，使用默认值');
+            healthData = getDefaultHealthData();
+            // 保存默认数据到服务器
+            await apiService.syncHealthData(healthData);
+        }
+    } catch (error) {
+        console.error('加载健康数据失败:', error);
+        healthData = getDefaultHealthData();
+    }
+    // 更新UI
+    updateUI();
+}
+// // 健康数据管理
+// async function loadHealthData() {
+//     try {
+//         const data = await apiService.getHealthData();
+//         healthData = data;
+//         updateUI();
+//         checkThresholds();
+//     } catch (error) {
+//         console.error('加载健康数据失败:', error);
+//         showAnalysisResult({ message: '加载健康数据失败，请检查网络连接' });
+//     }
+// }
+
+// 获取默认健康数据
+function getDefaultHealthData() {
+    return {
+        physiological: {
+            hunger: 50,
+            thirst: 50,
+            toilet: 50,
+            social: 50,
+            fatigue: 50,
+            hygiene: 50
+        },
+        mental: {
+            fitness: 50,
+            happiness: 50,
+            achievement: 50,
+            eyeFatigue: 50,
+            sleepQuality: 50,
+            heartHealth: 50
+        },
+        ability: {
+            muscle: 50,
+            agility: 50,
+            resistance: 50,
+            timeControl: 50,
+            creativity: 50,
+            security: 50
+        }
+    };
+}
+
+// 加载阈值
+async function loadThresholds() {
+    try {
+        const response = await apiService.getThresholds();
+        if (response && typeof response === 'object') {
+            thresholds = response;
+        }
+    } catch (error) {
+        console.error('加载阈值设置失败:', error);
+        // 使用默认阈值
+        console.log('使用默认阈值设置');
+    }
+}
+
+
+// 更新分类指标
+function updateCategoryMetrics(category) {
+    Object.entries(healthData[category]).forEach(([key, value]) => {
+        const element = document.querySelector(`.${category} .metric[data-type="${key}"]`);
+        if (element) {
+            const valueElement = element.querySelector('.value');
+            const progressElement = element.querySelector('progress');
+            if (valueElement) valueElement.textContent = `${Math.round(value)}%`;
+            if (progressElement) progressElement.value = value;
+        }
+    });
+}
+
+// 更新时间显示
+function updateTimeDisplay() {
+    const timeElement = document.querySelector('.time');
+    if (timeElement) {
+        const now = new Date();
+        timeElement.textContent = `当前时间: ${now.toLocaleString()}`;
+        lastSyncTime = now;
+    }
+}
+
+// 更新当前时间
+function updateCurrentTime() {
+    updateTimeDisplay();
+}
+
+// 自动同步
+function startAutoSync() {
+    setInterval(async () => {
+        await syncHealthData();
+    }, 5000); // 每5秒同步一次
+}
+
+// 同步健康数据
+async function syncHealthData() {
+    try {
+        console.log('开始同步健康数据...');
+        const response = await apiService.syncHealthData(healthData);
+        console.log('同步响应:', response);
+        
+        if (response && response.status === 'success') {
+            lastSyncTime = new Date();
+            updateTimeDisplay();
+            console.log('健康数据同步成功');
+            
+            // 重新加载健康数据以确保显示最新状态
+            await loadHealthData();
+        }
+    } catch (error) {
+        console.error('同步健康数据失败:', error);
+    }
+}
+
+// 设置事件监听器
+function setupEventListeners() {
+    // 添加事件更新监听
+    window.addEventListener('message', async (event) => {
+        if (event.data.type === 'eventUpdate') {
+            await handleEventUpdate(event.data.eventData);
+        }
+    });
+}
+
+// 处理事件更新
+async function handleEventUpdate(eventData) {
+    try {
+        // 获取事件影响
+        const impactResult = await apiService.calculateEventImpact(eventData);
+        const impact = impactResult.impact;
+
+        // 应用影响
+        for (const [metric, data] of Object.entries(impact)) {
+            const category = getMetricCategory(metric);
+            if (category && healthData[category]) {
+                // 确保新值在0-100范围内
+                healthData[category][metric] = Math.max(0, Math.min(100, data.new));
+            }
+        }
+
+        // 更新显示
+        updateUI();
+        
+        // 同步到服务器
+        await syncHealthData();
+        
+        console.log('事件影响已应用:', impact);
+    } catch (error) {
+        console.error('处理事件更新失败:', error);
+    }
+}
+
+// 获取指标类别
+function getMetricCategory(metric) {
+    const categories = {
+        physiological: ['hunger', 'thirst', 'toilet', 'social', 'fatigue', 'hygiene'],
+        mental: ['fitness', 'happiness', 'achievement', 'eyeFatigue', 'sleepQuality', 'heartHealth'],
+        ability: ['muscle', 'agility', 'resistance', 'timeControl', 'creativity', 'security']
+    };
+
+    for (const [category, metrics] of Object.entries(categories)) {
+        if (metrics.includes(metric)) {
+            return category;
+        }
+    }
+    return null;
+}
+
+// 页面加载完成后初始化
+document.addEventListener('DOMContentLoaded', init);
+
+// 导出函数供其他模块使用
+export { handleEventUpdate };
+
+
+// 更新显示
 function updateUI() {
+    if (!healthData) return;
+
     // 更新生理需求
-    Object.entries(healthData.physiological).forEach(([key, value]) => {
-        const element = document.querySelector(`.physiological .metric[data-type="${key}"]`);
-        if (element) {
-            element.querySelector('.value').textContent = `${Math.round(value)}%`;
-            element.querySelector('progress').value = value;
-        }
-    });
-
+    updateCategoryMetrics('physiological');
     // 更新身心状况
-    Object.entries(healthData.mental).forEach(([key, value]) => {
-        const element = document.querySelector(`.mental .metric[data-type="${key}"]`);
-        if (element) {
-            element.querySelector('.value').textContent = `${Math.round(value)}%`;
-            element.querySelector('progress').value = value;
-        }
-    });
-
+    updateCategoryMetrics('mental');
     // 更新能力属性
-    Object.entries(healthData.ability).forEach(([key, value]) => {
-        const element = document.querySelector(`.ability .metric[data-type="${key}"]`);
-        if (element) {
-            element.querySelector('.value').textContent = `${Math.round(value)}%`;
-            element.querySelector('progress').value = value;
-        }
-    });
+    updateCategoryMetrics('ability');
 
+    // 更新时间显示
+    updateTimeDisplay();
     updateProgressColors();
 }
+
+
+// function updateUI() {
+//     console.log('更新UI，当前健康数据:', healthData);
+//     if (!healthData) return;
+
+//     // 更新生理需求
+//     Object.entries(healthData.physiological).forEach(([key, value]) => {
+//         const element = document.querySelector(`.physiological .metric[data-type="${key}"]`);
+//         if (element) {
+//             const valueElement = element.querySelector('.value');
+//             const progressElement = element.querySelector('progress');
+//             if (valueElement) valueElement.textContent = `${Math.round(value)}%`;
+//             if (progressElement) progressElement.value = value;
+//         }
+//     });
+
+//     // 更新身心状况
+//     Object.entries(healthData.mental).forEach(([key, value]) => {
+//         const element = document.querySelector(`.mental .metric[data-type="${key}"]`);
+//         if (element) {
+//             const valueElement = element.querySelector('.value');
+//             const progressElement = element.querySelector('progress');
+//             if (valueElement) valueElement.textContent = `${Math.round(value)}%`;
+//             if (progressElement) progressElement.value = value;
+//         }
+//     });
+
+//     // 更新能力属性
+//     Object.entries(healthData.ability).forEach(([key, value]) => {
+//         const element = document.querySelector(`.ability .metric[data-type="${key}"]`);
+//         if (element) {
+//             const valueElement = element.querySelector('.value');
+//             const progressElement = element.querySelector('progress');
+//             if (valueElement) valueElement.textContent = `${Math.round(value)}%`;
+//             if (progressElement) progressElement.value = value;
+//         }
+//     });
+
+//     updateProgressColors();
+// }
 
 // 阈值检查
 async function checkThresholds() {
@@ -414,21 +663,6 @@ function updateProgressColors() {
     });
 }
 
-// 更新当前时间
-function updateCurrentTime() {
-    const now = new Date();
-    const timeString = now.toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false
-    });
-    document.querySelector('.time').textContent = `当前时间: ${timeString}`;
-}
-
 // 显示分析结果
 function showAnalysisResult(result) {
     const logElement = document.querySelector('.log pre');
@@ -472,9 +706,6 @@ function handleFooterButtonClick(buttonText) {
 
 // 初始化函数
 let syncInterval;
-
-
-// ... 保持现有代码不变 ...
 
 // 语音识别功能
 class SpeechRecognitionManager {
@@ -606,8 +837,6 @@ function initializeEventListeners() {
     
     document.body.appendChild(voiceButton);
 }
-
-
 
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', initialize);
