@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>地球Online 周报</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+        .header {
+            background: linear-gradient(135deg, #3a7bd5, #00d2ff);
+            color: white;
+            padding: 20px 0;
+            text-align: center;
+            margin-bottom: 30px;
+            border-radius: 0 0 10px 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .report-container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        .section-title {
+            border-bottom: 2px solid #3a7bd5;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+        .attribute-card {
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 4px solid #3a7bd5;
+        }
+        .improved-attribute {
+            border-left-color: #2ecc71;
+        }
+        .high-attribute {
+            border-left-color: #f1c40f;
+        }
+        .trend-up {
+            color: #2ecc71;
+        }
+        .trend-down {
+            color: #e74c3c;
+        }
+        .trend-stable {
+            color: #f1c40f;
+        }
+        .encouragement {
+            background-color: #ebf5fb;
+            border-radius: 8px;
+            padding: 20px;
+            font-style: italic;
+            border-left: 4px solid #3498db;
+        }
+        .loading {
+            text-align: center;
+            margin: 50px 0;
+        }
+        .error-message {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .category-section {
+            margin-bottom: 30px;
+        }
+        .btn-back {
+            margin-bottom: 20px;
+        }
+        pre {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            overflow-wrap: break-word;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="container">
+            <h1>地球Online 周报</h1>
+            <p>分析您过去7天的健康状况，提供个性化建议</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <a href="/" class="btn btn-primary btn-back">
+            <i class="bi bi-arrow-left"></i> 返回主页
+        </a>
+
+        <div id="loading" class="loading">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">加载中...</span>
+            </div>
+            <p>正在生成您的周报，请稍候...</p>
+        </div>
+
+        <div id="error" class="error-message" style="display: none;"></div>
+
+        <div id="reportContainer" class="report-container" style="display: none;">
+            <h2 class="section-title">报告概览</h2>
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <p><strong>报告期间：</strong> <span id="reportPeriod"></span></p>
+                </div>
+            </div>
+
+            <h2 class="section-title">改善最显著的属性</h2>
+            <div id="improvedAttributes" class="row">
+                <!-- 改善属性将在这里动态添加 -->
+            </div>
+
+            <h2 class="section-title">保持较高水平的属性</h2>
+            <div id="highAttributes" class="row">
+                <!-- 高水平属性将在这里动态添加 -->
+            </div>
+
+            <h2 class="section-title">详细数据</h2>
+            
+            <div class="category-section">
+                <h3>生理需求</h3>
+                <div id="physiologicalAttributes" class="row">
+                    <!-- 生理需求属性将在这里动态添加 -->
+                </div>
+            </div>
+            
+            <div class="category-section">
+                <h3>身心状况</h3>
+                <div id="mentalAttributes" class="row">
+                    <!-- 身心状况属性将在这里动态添加 -->
+                </div>
+            </div>
+            
+            <div class="category-section">
+                <h3>能力属性</h3>
+                <div id="abilityAttributes" class="row">
+                    <!-- 能力属性将在这里动态添加 -->
+                </div>
+            </div>
+
+            <h2 class="section-title">个性化鼓励</h2>
+            <div class="encouragement" id="encouragement">
+                <!-- 个性化鼓励将在这里动态添加 -->
+            </div>
+
+            <div class="mt-4">
+                <h2 class="section-title">原始报告</h2>
+                <pre id="rawReport"></pre>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // 生成周报
+            generateWeeklyReport();
+
+            // 按钮点击事件
+            document.querySelector('.btn-back').addEventListener('click', function(e) {
+                e.preventDefault();
+                window.location.href = '/';
+            });
+        });
+
+        // 生成周报
+        function generateWeeklyReport() {
+            const loadingElement = document.getElementById('loading');
+            const errorElement = document.getElementById('error');
+            const reportContainer = document.getElementById('reportContainer');
+
+            fetch('/api/reports/weekly')
+                .then(response => response.json())
+                .then(data => {
+                    loadingElement.style.display = 'none';
+                    
+                    if (data.status === 'error') {
+                        errorElement.textContent = data.message;
+                        errorElement.style.display = 'block';
+                        return;
+                    }
+                    
+                    // 显示报告容器
+                    reportContainer.style.display = 'block';
+                    
+                    // 填充报告数据
+                    displayReportData(data.report_data);
+                })
+                .catch(error => {
+                    loadingElement.style.display = 'none';
+                    errorElement.textContent = '加载周报时出错：' + error.message;
+                    errorElement.style.display = 'block';
+                    console.error('Error fetching weekly report:', error);
+                });
+        }
+
+        // 显示报告数据
+        function displayReportData(reportData) {
+            // 设置报告期间
+            document.getElementById('reportPeriod').textContent = `${reportData.period_start} 至 ${reportData.period_end}`;
+            
+            // 显示改善最显著的属性
+            const improvedAttributesContainer = document.getElementById('improvedAttributes');
+            improvedAttributesContainer.innerHTML = '';
+            
+            if (reportData.improved_attrs && reportData.improved_attrs.length > 0) {
+                reportData.improved_attrs.slice(0, 3).forEach(item => {
+                    const attr = item[0];
+                    const stats = reportData.attributes[attr];
+                    
+                    const attributeCard = document.createElement('div');
+                    attributeCard.className = 'col-md-4';
+                    attributeCard.innerHTML = `
+                        <div class="attribute-card improved-attribute">
+                            <h4>${stats.label}</h4>
+                            <p>起始值: ${stats.start.toFixed(1)} → 当前值: ${stats.end.toFixed(1)}</p>
+                            <p>改善幅度: ${Math.abs(item[1]).toFixed(1)}%</p>
+                            <p>变化趋势: <span class="trend-${stats.trend > 0.1 ? 'up' : (stats.trend < -0.1 ? 'down' : 'stable')}">${stats.trend_symbol}</span></p>
+                        </div>
+                    `;
+                    improvedAttributesContainer.appendChild(attributeCard);
+                });
+            } else {
+                improvedAttributesContainer.innerHTML = '<div class="col-12"><p>暂无显著改善的属性</p></div>';
+            }
+            
+            // 显示保持较高水平的属性
+            const highAttributesContainer = document.getElementById('highAttributes');
+            highAttributesContainer.innerHTML = '';
+            
+            if (reportData.high_attrs && reportData.high_attrs.length > 0) {
+                reportData.high_attrs.slice(0, 3).forEach(item => {
+                    const attr = item[0];
+                    const stats = reportData.attributes[attr];
+                    
+                    const attributeCard = document.createElement('div');
+                    attributeCard.className = 'col-md-4';
+                    attributeCard.innerHTML = `
+                        <div class="attribute-card high-attribute">
+                            <h4>${stats.label}</h4>
+                            <p>平均值: ${stats.average.toFixed(1)}</p>
+                            <p>最大值: ${stats.max.toFixed(1)}</p>
+                            <p>最小值: ${stats.min.toFixed(1)}</p>
+                        </div>
+                    `;
+                    highAttributesContainer.appendChild(attributeCard);
+                });
+            } else {
+                highAttributesContainer.innerHTML = '<div class="col-12"><p>暂无保持较高水平的属性</p></div>';
+            }
+            
+            // 按类别显示详细属性
+            displayCategoryAttributes('physiological', reportData.attributes);
+            displayCategoryAttributes('mental', reportData.attributes);
+            displayCategoryAttributes('ability', reportData.attributes);
+            
+            // 显示个性化鼓励
+            document.getElementById('encouragement').textContent = reportData.encouragement;
+            
+            // 显示原始报告
+            document.getElementById('rawReport').textContent = reportData.report_text;
+        }
+
+        // 显示类别属性
+        function displayCategoryAttributes(category, attributes) {
+            const container = document.getElementById(`${category}Attributes`);
+            container.innerHTML = '';
+            
+            // 过滤当前类别的属性
+            const categoryAttrs = Object.entries(attributes).filter(([_, stats]) => stats.category === category);
+            
+            if (categoryAttrs.length === 0) {
+                container.innerHTML = '<div class="col-12"><p>没有此类别的属性数据</p></div>';
+                return;
+            }
+            
+            // 显示属性
+            categoryAttrs.forEach(([attr, stats]) => {
+                const attributeCard = document.createElement('div');
+                attributeCard.className = 'col-md-4 mb-3';
+                attributeCard.innerHTML = `
+                    <div class="attribute-card">
+                        <h4>${stats.label}</h4>
+                        <p>当前值: ${stats.end.toFixed(1)} <span class="trend-${stats.trend > 0.1 ? 'up' : (stats.trend < -0.1 ? 'down' : 'stable')}">${stats.trend_symbol}</span></p>
+                        <p>平均值: ${stats.average.toFixed(1)}</p>
+                        <p>变化率: ${stats.change_percent.toFixed(1)}%</p>
+                    </div>
+                `;
+                container.appendChild(attributeCard);
+            });
+        }
+    </script>
+</body>
+</html> 

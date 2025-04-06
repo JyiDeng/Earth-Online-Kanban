@@ -539,6 +539,11 @@ def sync_health_data():
         if not data:
             print("错误：未提供同步数据")
             return jsonify({"status": "error", "message": "未提供同步数据"}), 400
+        
+        # 检查是否是从example.data同步的请求
+        if 'action' in data and data['action'] == 'sync_from_example':
+            print("收到从示例数据同步请求")
+            return sync_from_example_data_handler()
             
         # print(f"接收到的同步数据: {json.dumps(data, ensure_ascii=False)}")
         
@@ -607,6 +612,96 @@ def sync_health_data():
         
     except Exception as e:
         error_msg = f"同步健康数据错误: {str(e)}\n{traceback.format_exc()}"
+        print(error_msg)
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# 处理从示例数据同步的请求
+def sync_from_example_data_handler():
+    try:
+        print("准备从示例数据同步")
+        example_file = os.path.join('data', 'example.data')
+        if not os.path.exists(example_file):
+            print(f"示例数据文件不存在: {example_file}")
+            
+            # 尝试在ui/data目录下查找
+            alt_example_file = os.path.join('ui', 'data', 'example.data')
+            if os.path.exists(alt_example_file):
+                example_file = alt_example_file
+                print(f"在替代位置找到示例数据文件: {example_file}")
+            else:
+                return jsonify({"status": "error", "message": "示例数据文件不存在"}), 404
+            
+        # 读取示例数据
+        with open(example_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        print(f"已从{example_file}读取示例数据")
+        
+        # 验证数据格式
+        required_categories = ["physiological", "mental", "ability"]
+        if not all(category in data for category in required_categories):
+            error_msg = f"示例数据格式错误：缺少必要的类别 {required_categories}"
+            print(error_msg)
+            return jsonify({"status": "error", "message": error_msg}), 400
+        
+        # 保存数据到文件
+        data_file = os.path.join('data', 'health_data.json')
+        print(f"准备保存数据到文件: {data_file}")
+        
+        # 确保data目录存在
+        os.makedirs('data', exist_ok=True)
+        
+        try:
+            # 保存主数据文件
+            with open(data_file, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            print("主数据保存成功")
+            
+            # 保存到历史记录
+            history_file = os.path.join('data', 'health_history.json')
+            try:
+                with open(history_file, 'r', encoding='utf-8') as f:
+                    history = json.load(f)
+            except (FileNotFoundError, json.JSONDecodeError):
+                history = []
+            
+            # 添加新的历史记录
+            history_entry = {
+                "timestamp": datetime.now().isoformat(),
+                "data": data
+            }
+            history.append(history_entry)
+            
+            # 只保留最近50条记录
+            if len(history) > 50:
+                history = history[-50:]
+            
+            # 保存历史记录
+            with open(history_file, 'w', encoding='utf-8') as f:
+                json.dump(history, f, indent=2, ensure_ascii=False)
+            print("历史数据保存成功")
+            
+            # 追踪属性变化
+            attribute_alerts = track_attribute_changes(data)
+            
+            # 模拟数据小变化
+            updated_data = simulate_data_change(data.copy())
+            
+            # 返回包含更新后数据的响应
+            return jsonify({
+                "status": "success",
+                "message": "健康数据同步成功！",
+                "data": updated_data,
+                "alerts": attribute_alerts
+            })
+            
+        except Exception as save_error:
+            error_msg = f"保存示例数据失败: {str(save_error)}\n{traceback.format_exc()}"
+            print(error_msg)
+            return jsonify({"status": "error", "message": f"保存示例数据失败: {str(save_error)}"}), 500
+        
+    except Exception as e:
+        error_msg = f"同步示例数据错误: {str(e)}\n{traceback.format_exc()}"
         print(error_msg)
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -1332,6 +1427,379 @@ def generate_mock_analysis(health_data):
     
     return result
 
+# 读取example.data文件
+@app.route('/api/example-data', methods=['GET'])
+def read_example_data():
+    try:
+        example_file = os.path.join('data', 'example.data')
+        if not os.path.exists(example_file):
+            return jsonify({"status": "error", "message": "示例数据文件不存在"}), 404
+            
+        with open(example_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            
+        return jsonify({
+            "status": "success", 
+            "message": "示例数据读取成功",
+            "data": data
+        })
+    except Exception as e:
+        print(f"读取示例数据错误: {str(e)}")
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# 生成周报
+@app.route('/api/reports/weekly', methods=['GET'])
+def generate_weekly_report():
+    try:
+        # 创建报告目录
+        reports_dir = os.path.join('data', 'reports')
+        os.makedirs(reports_dir, exist_ok=True)
+        
+        # 加载健康历史数据
+        history_file = os.path.join('data', 'health_history.json')
+        if not os.path.exists(history_file):
+            return jsonify({"status": "error", "message": "没有足够的历史数据生成周报"}), 400
+            
+        with open(history_file, 'r', encoding='utf-8') as f:
+            history = json.load(f)
+        
+        # 获取最近7天的数据
+        now = datetime.now()
+        one_week_ago = now - timedelta(days=7)
+        
+        # 筛选过去7天的数据
+        week_data = []
+        for entry in history:
+            try:
+                entry_time = datetime.fromisoformat(entry["timestamp"])
+                if entry_time >= one_week_ago:
+                    week_data.append(entry)
+            except (ValueError, KeyError):
+                continue
+        
+        if not week_data:
+            return jsonify({"status": "error", "message": "过去7天没有足够的数据生成周报"}), 400
+            
+        # 分析数据
+        report_data = analyze_report_data(week_data, "周报")
+        
+        # 生成报告文件
+        report_filename = f"earth_online_weekly_{now.strftime('%Y%m%d')}.txt"
+        report_path = os.path.join(reports_dir, report_filename)
+        
+        with open(report_path, 'w', encoding='utf-8') as f:
+            f.write(report_data["report_text"])
+        
+        return jsonify({
+            "status": "success",
+            "message": "周报生成成功",
+            "report_file": report_path,
+            "report_data": report_data
+        })
+        
+    except Exception as e:
+        print(f"生成周报错误: {str(e)}")
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# 生成月报
+@app.route('/api/reports/monthly', methods=['GET'])
+def generate_monthly_report():
+    try:
+        # 创建报告目录
+        reports_dir = os.path.join('data', 'reports')
+        os.makedirs(reports_dir, exist_ok=True)
+        
+        # 加载健康历史数据
+        history_file = os.path.join('data', 'health_history.json')
+        if not os.path.exists(history_file):
+            return jsonify({"status": "error", "message": "没有足够的历史数据生成月报"}), 400
+            
+        with open(history_file, 'r', encoding='utf-8') as f:
+            history = json.load(f)
+        
+        # 获取最近30天的数据
+        now = datetime.now()
+        one_month_ago = now - timedelta(days=30)
+        
+        # 筛选过去30天的数据
+        month_data = []
+        for entry in history:
+            try:
+                entry_time = datetime.fromisoformat(entry["timestamp"])
+                if entry_time >= one_month_ago:
+                    month_data.append(entry)
+            except (ValueError, KeyError):
+                continue
+        
+        if not month_data:
+            return jsonify({"status": "error", "message": "过去30天没有足够的数据生成月报"}), 400
+            
+        # 分析数据
+        report_data = analyze_report_data(month_data, "月报")
+        
+        # 生成报告文件
+        report_filename = f"earth_online_monthly_{now.strftime('%Y%m%d')}.txt"
+        report_path = os.path.join(reports_dir, report_filename)
+        
+        with open(report_path, 'w', encoding='utf-8') as f:
+            f.write(report_data["report_text"])
+        
+        return jsonify({
+            "status": "success",
+            "message": "月报生成成功",
+            "report_file": report_path,
+            "report_data": report_data
+        })
+        
+    except Exception as e:
+        print(f"生成月报错误: {str(e)}")
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# 分析报告数据
+def analyze_report_data(data_entries, report_type):
+    # 提取开始和结束时间
+    start_time = datetime.fromisoformat(data_entries[0]["timestamp"])
+    end_time = datetime.fromisoformat(data_entries[-1]["timestamp"])
+    
+    period_start = start_time.strftime("%Y-%m-%d")
+    period_end = end_time.strftime("%Y-%m-%d")
+    
+    # 初始化类别和属性统计
+    categories = ["physiological", "mental", "ability"]
+    attributes = {}
+    
+    # 初始化报告数据结构
+    for entry in data_entries:
+        for category in categories:
+            if category in entry["data"]:
+                for attr, value in entry["data"][category].items():
+                    if attr not in attributes:
+                        attributes[attr] = {
+                            "values": [],
+                            "category": category,
+                            "label": get_metric_label(attr)
+                        }
+                    try:
+                        attributes[attr]["values"].append(float(value))
+                    except (ValueError, TypeError):
+                        continue
+    
+    # 统计每个属性的趋势和变化
+    attr_stats = {}
+    improved_attrs = []
+    high_attrs = []
+    
+    for attr, data in attributes.items():
+        if not data["values"]:
+            continue
+            
+        # 计算统计值
+        avg = sum(data["values"]) / len(data["values"])
+        max_val = max(data["values"])
+        min_val = min(data["values"])
+        start_val = data["values"][0]
+        end_val = data["values"][-1]
+        
+        # 计算趋势（简单线性回归）
+        x = list(range(len(data["values"])))
+        if len(x) > 1:
+            # 使用简单的线性回归计算趋势
+            n = len(x)
+            sum_x = sum(x)
+            sum_y = sum(data["values"])
+            sum_xy = sum(x[i] * data["values"][i] for i in range(n))
+            sum_xx = sum(x[i] ** 2 for i in range(n))
+            
+            # 计算斜率
+            try:
+                slope = (n * sum_xy - sum_x * sum_y) / (n * sum_xx - sum_x ** 2)
+            except ZeroDivisionError:
+                slope = 0
+        else:
+            slope = 0
+            
+        # 确定趋势符号
+        if slope > 0.1:
+            trend_symbol = "↑"
+        elif slope < -0.1:
+            trend_symbol = "↓"
+        else:
+            trend_symbol = "→"
+            
+        # 计算变化百分比
+        if start_val > 0:
+            change_percent = ((end_val - start_val) / start_val) * 100
+        else:
+            change_percent = 0
+            
+        # 保存统计结果
+        attr_stats[attr] = {
+            "label": data["label"],
+            "category": data["category"],
+            "average": avg,
+            "max": max_val,
+            "min": min_val,
+            "start": start_val,
+            "end": end_val,
+            "trend": slope,
+            "trend_symbol": trend_symbol,
+            "change_percent": change_percent
+        }
+        
+        # 识别改善最大的属性
+        if change_percent > 10 and attr not in ["toilet", "fatigue", "eyeFatigue"]:
+            improved_attrs.append((attr, change_percent))
+        elif change_percent < -10 and attr in ["toilet", "fatigue", "eyeFatigue"]:
+            improved_attrs.append((attr, -change_percent))
+            
+        # 识别保持较高的属性
+        if avg > 70 and attr not in ["toilet", "fatigue", "eyeFatigue"]:
+            high_attrs.append((attr, avg))
+        elif avg < 30 and attr in ["toilet", "fatigue", "eyeFatigue"]:
+            high_attrs.append((attr, 100 - avg))
+    
+    # 排序改善和高值属性
+    improved_attrs.sort(key=lambda x: x[1], reverse=True)
+    high_attrs.sort(key=lambda x: x[1], reverse=True)
+    
+    # 构建文本报告
+    report = f"地球Online {report_type}\n"
+    report += f"报告期间: {period_start} 至 {period_end}\n\n"
+    
+    # 添加改善最大的属性
+    report += "===== 改善最显著的属性 =====\n"
+    if improved_attrs:
+        for i, (attr, change) in enumerate(improved_attrs[:3], 1):
+            stats = attr_stats[attr]
+            report += f"{i}. {stats['label']}:\n"
+            report += f"   起始值: {stats['start']:.1f} → 当前值: {stats['end']:.1f}\n"
+            report += f"   改善幅度: {abs(change):.1f}%\n\n"
+    else:
+        report += "暂无显著改善的属性\n\n"
+    
+    # 添加保持较高的属性
+    report += "===== 保持较高水平的属性 =====\n"
+    if high_attrs:
+        for i, (attr, avg) in enumerate(high_attrs[:3], 1):
+            stats = attr_stats[attr]
+            report += f"{i}. {stats['label']}:\n"
+            report += f"   平均值: {stats['average']:.1f}\n"
+            report += f"   最大值: {stats['max']:.1f}\n\n"
+    else:
+        report += "暂无保持较高水平的属性\n\n"
+    
+    # 按类别组织的详细数据
+    report += "===== 详细数据 =====\n"
+    for category in categories:
+        category_attrs = {k: v for k, v in attr_stats.items() if v["category"] == category}
+        if not category_attrs:
+            continue
+            
+        if category == "physiological":
+            category_name = "生理需求"
+        elif category == "mental":
+            category_name = "身心状况"
+        elif category == "ability":
+            category_name = "能力属性"
+        else:
+            category_name = category
+            
+        report += f"\n{category_name}:\n"
+        report += "-" * 50 + "\n"
+        
+        for attr, stats in category_attrs.items():
+            report += f"{stats['label']}:\n"
+            report += f"  当前值: {stats['end']:.1f} {stats['trend_symbol']}\n"
+            report += f"  平均值: {stats['average']:.1f}\n"
+            report += f"  最大值: {stats['max']:.1f}\n"
+            report += f"  最小值: {stats['min']:.1f}\n"
+            report += f"  变化趋势: {stats['trend']:.4f}/天\n"
+            report += "\n"
+    
+    # 生成个性化鼓励语
+    encouragement = generate_encouragement(improved_attrs, high_attrs, attr_stats)
+    report += "\n===== 个性化鼓励 =====\n"
+    report += encouragement
+    
+    # 返回结果
+    return {
+        "report_text": report,
+        "period_start": period_start,
+        "period_end": period_end,
+        "attributes": attr_stats,
+        "improved_attrs": improved_attrs,
+        "high_attrs": high_attrs,
+        "encouragement": encouragement
+    }
+
+# 生成个性化鼓励语
+def generate_encouragement(improved_attrs, high_attrs, attr_stats):
+    try:
+        # 准备鼓励语句
+        if QIANFAN_AVAILABLE:
+            # 使用千帆大模型生成鼓励语
+            chat = QianfanChatEndpoint(streaming=False)
+            
+            # 构建提示词
+            prompt = "作为一位温柔的健康顾问，请根据以下数据给用户一段温馨的鼓励语，长度在100-150字之间。语气要温暖亲切。全程使用中文。\n\n"
+            
+            # 添加改善的属性信息
+            if improved_attrs:
+                prompt += "用户改善最显著的属性：\n"
+                for attr, change in improved_attrs[:3]:
+                    stats = attr_stats[attr]
+                    prompt += f"- {stats['label']}：从 {stats['start']:.1f} 提升到 {stats['end']:.1f}，改善了 {abs(change):.1f}%\n"
+            
+            # 添加保持较高的属性信息
+            if high_attrs:
+                prompt += "\n用户保持较高水平的属性：\n"
+                for attr, avg in high_attrs[:3]:
+                    stats = attr_stats[attr]
+                    prompt += f"- {stats['label']}：平均值 {stats['average']:.1f}，最高达到 {stats['max']:.1f}\n"
+            
+            try:
+                response = chat([HumanMessage(content=prompt)])
+                encouragement = response.content.strip()
+                print("千帆API生成的鼓励语:", encouragement)
+                return encouragement
+            except Exception as e:
+                print(f"调用千帆API失败: {e}")
+        
+        # 如果千帆API不可用或失败，使用预设鼓励语
+        if improved_attrs:
+            # 有改善的属性
+            most_improved = attr_stats[improved_attrs[0][0]]['label']
+            encouragement = f"亲爱的用户，我注意到你的{most_improved}有了显著的提升，这真的很棒！这表明你在自我管理方面正在取得进步。"
+            encouragement += f"健康是一场持久的马拉松，而不是短跑，每一个小进步都是值得庆祝的。继续保持这样的节奏，相信未来会有更多惊喜等着你。记住，温和而持续的努力往往比激进的改变更有效。期待在下次报告中看到你的更多进步！"
+        elif high_attrs:
+            # 有保持较高的属性
+            best_attr = attr_stats[high_attrs[0][0]]['label']
+            encouragement = f"亲爱的用户，你的{best_attr}一直保持在很高的水平，这是非常值得肯定的成就！"
+            encouragement += f"保持良好状态需要持续的努力和坚持，而你做到了这一点。这份坚持不仅体现了你的自律，也为你的整体健康打下了坚实基础。希望你能将这种良好的习惯延续下去，同时也可以尝试在其他方面有所突破。健康的旅程上，你已经走在了正确的道路上！"
+        else:
+            # 通用鼓励语
+            encouragement = "亲爱的用户，健康是一场持久的旅程，每一个小小的进步都值得被肯定。"
+            encouragement += "即使现在可能没有看到显著的变化，但你的坚持和努力正在为未来打下基础。健康的变化往往是渐进的，需要时间来展现。"
+            encouragement += "请继续保持你的节奏，关注自己的感受，相信随着时间的推移，这些细微的改变会累积成显著的进步。期待在下一次报告中看到你的成长！"
+        
+        return encouragement
+    except Exception as e:
+        print(f"生成鼓励语错误: {e}")
+        return "亲爱的用户，感谢你持续关注自己的健康状况。健康是一场马拉松，而不是短跑，每一个小进步都值得庆祝。相信通过你的坚持和努力，一定会看到更多积极的变化！"
+
+# 添加周报页面
+@app.route('/weekly-report')
+def weekly_report_page():
+    return send_file('weekly_report.html')
+
+# 添加月报页面
+@app.route('/monthly-report')
+def monthly_report_page():
+    return send_file('monthly_report.html')
+
 # 启动服务器
 if __name__ == '__main__':
     # 注册信号处理器
@@ -1353,3 +1821,84 @@ if __name__ == '__main__':
         cleanup_resources()
     finally:
         print("服务器已关闭")
+
+# 从example.data同步健康数据
+@app.route('/api/sync-from-example', methods=['POST'])
+def sync_from_example_data():
+    try:
+        print("收到从示例数据同步请求")
+        example_file = os.path.join('data', 'example.data')
+        if not os.path.exists(example_file):
+            return jsonify({"status": "error", "message": "示例数据文件不存在"}), 404
+            
+        # 读取示例数据
+        with open(example_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        # 验证数据格式
+        required_categories = ["physiological", "mental", "ability"]
+        if not all(category in data for category in required_categories):
+            error_msg = f"数据格式错误：缺少必要的类别 {required_categories}"
+            print(error_msg)
+            return jsonify({"status": "error", "message": error_msg}), 400
+        
+        # 保存数据到文件
+        data_file = os.path.join('data', 'health_data.json')
+        print(f"准备保存数据到文件: {data_file}")
+        
+        # 确保data目录存在
+        os.makedirs('data', exist_ok=True)
+        
+        try:
+            # 保存主数据文件
+            with open(data_file, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            print("主数据保存成功")
+            
+            # 保存到历史记录
+            history_file = os.path.join('data', 'health_history.json')
+            try:
+                with open(history_file, 'r', encoding='utf-8') as f:
+                    history = json.load(f)
+            except (FileNotFoundError, json.JSONDecodeError):
+                history = []
+            
+            # 添加新的历史记录
+            history_entry = {
+                "timestamp": datetime.now().isoformat(),
+                "data": data
+            }
+            history.append(history_entry)
+            
+            # 只保留最近50条记录
+            if len(history) > 50:
+                history = history[-50:]
+            
+            # 保存历史记录
+            with open(history_file, 'w', encoding='utf-8') as f:
+                json.dump(history, f, indent=2, ensure_ascii=False)
+            print("历史数据保存成功")
+            
+            # 追踪属性变化
+            attribute_alerts = track_attribute_changes(data)
+            
+            # 模拟数据小变化
+            updated_data = simulate_data_change(data.copy())
+            
+            # 返回包含更新后数据的响应
+            return jsonify({
+                "status": "success",
+                "message": "示例数据同步成功",
+                "data": updated_data,
+                "alerts": attribute_alerts
+            })
+            
+        except Exception as save_error:
+            error_msg = f"保存示例数据失败: {str(save_error)}\n{traceback.format_exc()}"
+            print(error_msg)
+            return jsonify({"status": "error", "message": f"保存示例数据失败: {str(save_error)}"}), 500
+        
+    except Exception as e:
+        error_msg = f"同步示例数据错误: {str(e)}\n{traceback.format_exc()}"
+        print(error_msg)
+        return jsonify({"status": "error", "message": str(e)}), 500

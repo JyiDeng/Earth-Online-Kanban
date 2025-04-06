@@ -188,9 +188,10 @@
   <footer class="footer">
     <button>设置</button>
     <button onclick="window.location.href='/event'">事件</button>
-    <button>同步健康数据</button>
+    <button id="syncFromExampleBtn">健康数据同步</button>
     <button onclick="window.location.href='/trends'">趋势图</button>
-    <button>周报/月报</button>
+    <button onclick="window.location.href='/weekly-report'">周报</button>
+    <button onclick="window.location.href='/monthly-report'">月报</button>
     <button class="emphasize-button">重置(下次打开生效)</button>
     
     <div class="footer">
@@ -209,6 +210,140 @@
     <div class="voice-wave"></div>
     <span>正在录音...</span>
   </div> -->
+
+  <!-- 同步示例数据的结果提示框 -->
+  <div id="syncResultModal" class="modal">
+    <div class="modal-content">
+      <span class="close">&times;</span>
+      <h2 id="modalTitle">数据同步结果</h2>
+      <p id="modalMessage"></p>
+    </div>
+  </div>
+
+  <style>
+    /* 模态框样式 */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.7);
+    }
+    
+    .modal-content {
+      background: linear-gradient(135deg, #1a2a6c, #b21f1f);
+      margin: 15% auto;
+      padding: 20px;
+      border-radius: 10px;
+      width: 50%;
+      max-width: 500px;
+      color: white;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+      text-align: center;
+    }
+    
+    .close {
+      color: #aaa;
+      float: right;
+      font-size: 28px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    
+    .close:hover,
+    .close:focus {
+      color: white;
+      text-decoration: none;
+    }
+  </style>
+
+  <script>
+    // 添加同步示例数据的功能
+    document.addEventListener('DOMContentLoaded', function() {
+      const syncBtn = document.getElementById('syncFromExampleBtn');
+      const modal = document.getElementById('syncResultModal');
+      const modalTitle = document.getElementById('modalTitle');
+      const modalMessage = document.getElementById('modalMessage');
+      const closeBtn = document.querySelector('.close');
+      
+      // 同步按钮点击事件
+      syncBtn.addEventListener('click', function() {
+        // 显示正在加载
+        modalTitle.textContent = '正在同步';
+        modalMessage.textContent = '正在从示例数据同步，请稍候...';
+        modal.style.display = 'block';
+        
+        fetch('/api/health/sync', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            action: 'sync_from_example'
+          })
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.status === 'success') {
+            modalTitle.textContent = '同步成功';
+            modalMessage.textContent = data.message || '示例数据同步成功！';
+            modal.style.display = 'block';
+            
+            // 更新页面上的健康数据
+            updateHealthDataUI(data.data);
+          } else {
+            modalTitle.textContent = '同步失败';
+            modalMessage.textContent = data.message || '同步过程中发生错误';
+            modal.style.display = 'block';
+          }
+        })
+        .catch(error => {
+          modalTitle.textContent = '同步错误';
+          modalMessage.textContent = '发生错误: ' + error.message;
+          modal.style.display = 'block';
+        });
+      });
+      
+      // 关闭模态框
+      closeBtn.addEventListener('click', function() {
+        modal.style.display = 'none';
+      });
+      
+      // 点击模态框外部关闭
+      window.addEventListener('click', function(event) {
+        if (event.target === modal) {
+          modal.style.display = 'none';
+        }
+      });
+      
+      // 更新UI上的健康数据
+      function updateHealthDataUI(healthData) {
+        // 遍历所有指标并更新UI
+        const updateCategory = (category) => {
+          for (const [key, value] of Object.entries(healthData[category])) {
+            const metricElement = document.querySelector(`.metric[data-type="${key}"]`);
+            if (metricElement) {
+              const progressBar = metricElement.querySelector('progress');
+              const valueSpan = metricElement.querySelector('.value');
+              
+              if (progressBar && valueSpan) {
+                progressBar.value = value;
+                valueSpan.textContent = `${Math.round(value)}%`;
+              }
+            }
+          }
+        };
+        
+        // 更新各类别数据
+        updateCategory('physiological');
+        updateCategory('mental');
+        updateCategory('ability');
+      }
+    });
+  </script>
 
 </body>
 
