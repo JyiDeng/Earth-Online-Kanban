@@ -16,6 +16,8 @@ import signal
 import speech_recognition as sr
 import base64
 import sys
+from langchain_community.chat_models.baidu_qianfan_endpoint import QianfanChatEndpoint
+from langchain_core.messages import HumanMessage
 
 app = Flask(__name__, static_folder='.', static_url_path='')
 CORS(app)
@@ -31,6 +33,24 @@ MODEL_FILE = os.path.join(DATA_DIR, 'model.json')
 
 # 确保数据目录存在
 os.makedirs(DATA_DIR, exist_ok=True)
+
+# 导入千帆大模型
+import sys
+import os
+# 添加langchain目录到系统路径
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'langchain'))
+try:
+    from langchain_community.chat_models import QianfanChatEndpoint
+    from langchain_core.messages import HumanMessage
+    import os
+    QIANFAN_AVAILABLE = True
+    # 设置千帆API密钥
+    os.environ["QIANFAN_AK"] = "g6MdHGaXwbPy3Stt55UYIAoP"
+    os.environ["QIANFAN_SK"] = "FUf5sz1x6SJ8lEnYsbB6M5fPY2vjYVfe"
+    print("千帆大模型API已加载")
+except ImportError:
+    QIANFAN_AVAILABLE = False
+    print("千帆大模型API导入失败，将使用模拟响应")
 
 # 禁用语音识别功能，使用模拟响应
 @app.route('/api/speech/record', methods=['POST'])
@@ -131,8 +151,8 @@ def init_default_data():
                 print(f"已保存默认健康数据")
         except Exception as e:
             print(f"读取健康数据文件出错: {e}，使用默认值覆盖")
-            with open(HEALTH_DATA_FILE, 'w') as f:
-                json.dump(default_health_data, f)
+        with open(HEALTH_DATA_FILE, 'w') as f:
+            json.dump(default_health_data, f)
 
     if not os.path.exists(SETTINGS_FILE):
         print(f"设置文件不存在，创建新文件: {SETTINGS_FILE}")
@@ -165,10 +185,10 @@ def init_default_data():
 def load_data(file_path):
     try:
         if os.path.exists(file_path):
-            with open(file_path, 'r') as f:
+            with open(file_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-            print(f"从 {file_path} 加载数据成功")
-            return data
+                print(f"从 {file_path} 加载数据成功")
+                return data
         else:
             print(f"文件不存在: {file_path}")
             return None
@@ -178,8 +198,9 @@ def load_data(file_path):
         if os.path.exists(file_path):
             backup_path = f"{file_path}.bak.{int(time.time())}"
             try:
-                os.rename(file_path, backup_path)
-                print(f"已备份损坏的文件到 {backup_path}")
+                with open(file_path, 'r', encoding='utf-8') as src, open(backup_path, 'w', encoding='utf-8') as dst:
+                    dst.write(src.read())
+                print(f"已备份损坏的文件到: {backup_path}")
             except Exception as backup_error:
                 print(f"备份文件失败: {backup_error}")
         return None
@@ -193,8 +214,8 @@ def save_data(file_path, data):
         # 确保目录存在
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
         
-        with open(file_path, 'w') as f:
-            json.dump(data, f, indent=2)
+        with open(file_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
         print(f"数据已保存到 {file_path}")
         return True
     except Exception as e:
@@ -203,60 +224,115 @@ def save_data(file_path, data):
 
 # 模拟数据变化
 def simulate_data_change(data):
-    for category in data:
-        for key in data[category]:
-            # 随机变化范围在-2到2之间，但大部分情况下不变
-            if random.random() < 0.3:  # 只有30%的概率改变
-                change = random.uniform(-1, 1)
-                new_value = data[category][key] + change
-                # 确保值在0-100之间
-                data[category][key] = max(0, min(100, new_value))
-    return data
+    """模拟数据变化"""
+    if not isinstance(data, dict):
+        print(f"错误：输入数据不是字典类型: {type(data)}")
+        return data
+        
+    try:
+        print("开始模拟数据变化...")
+        # 创建数据的深拷贝以避免修改原始数据
+        modified_data = {}
+        
+        for category in data:
+            if not isinstance(data[category], dict):
+                print(f"警告：类别 {category} 的数据不是字典类型，跳过")
+                modified_data[category] = data[category]
+                continue
+                
+            modified_data[category] = {}
+            for key, value in data[category].items():
+                try:
+                    # 确保当前值是数值类型
+                    current_value = float(value)
+                    # 生成一个较小的随机变化值，范围在-0.5到0.5之间
+                    change = random.uniform(-0.5, 0.5)
+                    # 应用变化并确保值在0-100之间
+                    new_value = max(0, min(100, current_value + change))
+                    modified_data[category][key] = new_value
+                    print(f"属性 {category}.{key} 从 {current_value:.2f} 变化 {change:+.2f}, 新值: {new_value:.2f}")
+                except (ValueError, TypeError) as e:
+                    print(f"警告：无法处理属性 {category}.{key} 的值 {value}: {str(e)}")
+                    modified_data[category][key] = value
+        
+        return modified_data
+    except Exception as e:
+        print(f"模拟数据变化时出错: {str(e)}\n{traceback.format_exc()}")
+        return data  # 如果出错，返回原始数据
 
 # 健康数据同步
 @app.route('/api/health/sync', methods=['POST'])
 def sync_health_data():
     try:
-        health_data = request.json
-        if not health_data:
-            return jsonify({"status": "error", "message": "未提供健康数据"}), 400
+        print("收到健康数据同步请求")
+        data = request.json
+        if not data:
+            print("错误：未提供同步数据")
+            return jsonify({"status": "error", "message": "未提供同步数据"}), 400
             
+        print(f"接收到的同步数据: {json.dumps(data, ensure_ascii=False)}")
+        
         # 验证数据格式
-        if not all(key in health_data for key in ["physiological", "mental", "ability"]):
-            return jsonify({"status": "error", "message": "健康数据格式错误"}), 400
+        required_categories = ["physiological", "mental", "ability"]
+        if not all(category in data for category in required_categories):
+            error_msg = f"数据格式错误：缺少必要的类别 {required_categories}"
+            print(error_msg)
+            return jsonify({"status": "error", "message": error_msg}), 400
         
-        # 保存数据
-        save_data(HEALTH_DATA_FILE, health_data)
+        # 保存数据到文件
+        data_file = os.path.join('data', 'health_data.json')
+        print(f"准备保存数据到文件: {data_file}")
         
-        # 添加到历史记录
-        history = load_data(HISTORY_FILE) or []
-        history_entry = {
-            "timestamp": datetime.now().isoformat(),
-            "data": health_data
-        }
-        history.append(history_entry)
+        # 确保data目录存在
+        os.makedirs('data', exist_ok=True)
         
-        # 只保留最近50条记录
-        if len(history) > 50:
-            history = history[-50:]
+        try:
+            # 保存主数据文件
+            with open(data_file, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            print("主数据保存成功")
             
-        save_data(HISTORY_FILE, history)
+            # 保存到历史记录
+            history_file = os.path.join('data', 'health_history.json')
+            try:
+                with open(history_file, 'r', encoding='utf-8') as f:
+                    history = json.load(f)
+            except (FileNotFoundError, json.JSONDecodeError):
+                history = []
+            
+            # 添加新的历史记录
+            history_entry = {
+                "timestamp": datetime.now().isoformat(),
+                "data": data
+            }
+            history.append(history_entry)
+            
+            # 只保留最近50条记录
+            if len(history) > 50:
+                history = history[-50:]
+            
+            # 保存历史记录
+            with open(history_file, 'w', encoding='utf-8') as f:
+                json.dump(history, f, indent=2, ensure_ascii=False)
+            print("历史数据保存成功")
+            
+            # 模拟数据小变化
+            updated_data = simulate_data_change(data.copy())
+            
+            return jsonify({
+                "status": "success",
+                "message": "数据同步成功",
+                "data": updated_data
+            })
+            
+        except Exception as save_error:
+            error_msg = f"保存数据失败: {str(save_error)}\n{traceback.format_exc()}"
+            print(error_msg)
+            return jsonify({"status": "error", "message": f"保存数据失败: {str(save_error)}"}), 500
         
-        # 模拟数据小变化
-        health_data = simulate_data_change(health_data)
-        
-        # 分析健康数据
-        analysis = analyze_data(health_data)
-        
-        return jsonify({
-            "status": "success",
-            "message": "数据同步成功",
-            "data": health_data,
-            "analysis": analysis
-        })
     except Exception as e:
-        print(f"同步健康数据错误: {e}")
-        traceback.print_exc()
+        error_msg = f"同步健康数据错误: {str(e)}\n{traceback.format_exc()}"
+        print(error_msg)
         return jsonify({"status": "error", "message": str(e)}), 500
 
 # 分析健康数据
@@ -597,6 +673,309 @@ def speech_to_text():
         
         # 释放资源
         app.active_recognizer = None
+
+# AI分析API
+@app.route('/api/analyze', methods=['POST'])
+def analyze_with_ai():
+    try:
+        print("收到AI分析请求")
+        data = request.json
+        if not data or 'healthData' not in data:
+            print("错误：未提供健康数据")
+            return jsonify({"status": "error", "message": "未提供健康数据"}), 400
+        
+        health_data = data['healthData']
+        print(f"接收到的健康数据: {json.dumps(health_data, ensure_ascii=False)}")
+        
+        # 格式化健康数据
+        formatted_data = format_health_data_for_ai(health_data)
+        
+        # 构建提示词
+        prompt = f"""作为一位专业的健康顾问，请分析以下用户的健康数据并给出建议。
+
+当前健康数据:
+{formatted_data}
+
+请从以下几个方面进行分析并以JSON格式回复：
+1. 总体健康状况评估
+2. 需要重点关注的指标（数值低于50%的指标）
+3. 对于每个需要关注的指标，给出具体的改善建议
+4. 给出三条通用的健康生活建议
+
+请确保返回的是合法的JSON格式，包含以下字段：
+{{
+    "总体评估": "...",
+    "需要关注的指标": [
+        {{
+            "指标名称": "...",
+            "当前值": "...",
+            "建议": "..."
+        }}
+    ],
+    "通用建议": [
+        "建议1",
+        "建议2",
+        "建议3"
+    ]
+}}"""
+
+        print("开始调用千帆大模型...")
+        print("发送的提示词:", prompt)
+        
+        try:
+            # 尝试调用千帆API
+            chat = QianfanChatEndpoint(streaming=False)
+            response = chat([HumanMessage(content=prompt)])
+            content = response.content
+            print("千帆API返回结果:", content)
+            
+            try:
+                # 尝试解析返回的JSON
+                analysis_result = json.loads(content)
+                
+                # 提取建议
+                recommendations = []
+                if "需要关注的指标" in analysis_result:
+                    for item in analysis_result["需要关注的指标"]:
+                        if "建议" in item:
+                            recommendations.append(item["建议"])
+                
+                if "通用建议" in analysis_result:
+                    recommendations.extend(analysis_result["通用建议"])
+                
+                response_data = {
+                    "status": "success",
+                    "content": content,
+                    "recommendations": recommendations
+                }
+                
+                print("返回的分析结果:", json.dumps(response_data, ensure_ascii=False))
+                return jsonify(response_data)
+                
+            except json.JSONDecodeError:
+                print("警告：AI返回的不是有效的JSON格式，尝试直接使用返回内容")
+                return jsonify({
+                    "status": "success",
+                    "content": content,
+                    "recommendations": extract_recommendations(content)
+                })
+                
+        except Exception as api_error:
+            print(f"调用千帆API失败: {str(api_error)}")
+            print("使用模拟数据作为备用")
+            content = generate_mock_analysis(health_data)
+            recommendations = extract_recommendations(content)
+            
+            return jsonify({
+                "status": "success",
+                "content": content,
+                "recommendations": recommendations,
+                "note": "使用模拟数据（API调用失败）"
+            })
+            
+    except Exception as e:
+        error_msg = f"AI分析错误: {str(e)}\n{traceback.format_exc()}"
+        print(error_msg)
+        return jsonify({
+            "status": "error", 
+            "message": str(e),
+            "content": "分析过程中出现错误，请稍后重试",
+            "recommendations": ["系统暂时无法提供分析建议，请稍后再试"]
+        }), 500
+
+def format_health_data_for_ai(health_data):
+    """格式化健康数据用于AI分析"""
+    formatted = []
+    
+    # 生理需求
+    if "physiological" in health_data:
+        formatted.append("\n生理需求:")
+        for key, value in health_data["physiological"].items():
+            label = get_metric_label(key)
+            formatted.append(f"- {label}: {value:.1f}%")
+    
+    # 身心状况
+    if "mental" in health_data:
+        formatted.append("\n身心状况:")
+        for key, value in health_data["mental"].items():
+            label = get_metric_label(key)
+            formatted.append(f"- {label}: {value:.1f}%")
+    
+    # 能力属性
+    if "ability" in health_data:
+        formatted.append("\n能力属性:")
+        for key, value in health_data["ability"].items():
+            label = get_metric_label(key)
+            formatted.append(f"- {label}: {value:.1f}%")
+    
+    return "\n".join(formatted)
+
+def get_metric_label(key):
+    """获取指标的中文标签"""
+    labels = {
+        "hunger": "饱腹度",
+        "thirst": "口渴度",
+        "toilet": "如厕需求",
+        "social": "社交需求",
+        "fatigue": "疲惫度",
+        "hygiene": "卫生状况",
+        "fitness": "瘦身指数",
+        "happiness": "幸福感",
+        "achievement": "成就感",
+        "eyeFatigue": "视疲劳",
+        "sleepQuality": "睡眠质量",
+        "heartHealth": "心脏健康度",
+        "muscle": "肌肉强度",
+        "agility": "敏捷度",
+        "resistance": "抗击打能力",
+        "timeControl": "时间掌控度",
+        "creativity": "创造力",
+        "security": "安全感"
+    }
+    return labels.get(key, key)
+
+# 从AI分析结果中提取建议
+def extract_recommendations(content):
+    """从AI分析结果中提取建议"""
+    try:
+        if not content:
+            print("警告：输入内容为空")
+            return ["系统暂时无法提供具体建议，请保持健康的生活方式"]
+            
+        print("开始提取建议...")
+        print(f"输入内容: {content}")
+        
+        # 如果内容是JSON字符串，尝试解析
+        if isinstance(content, str) and content.strip().startswith('{'):
+            try:
+                data = json.loads(content)
+                if isinstance(data, dict):
+                    # 尝试从不同可能的键中获取建议
+                    recommendations = []
+                    if '建议' in data:
+                        recs = data['建议']
+                        if isinstance(recs, list):
+                            recommendations.extend(recs)
+                        elif isinstance(recs, str):
+                            recommendations.append(recs)
+                    
+                    if '分析结果' in data and isinstance(data['分析结果'], dict):
+                        if '建议' in data['分析结果']:
+                            recs = data['分析结果']['建议']
+                            if isinstance(recs, list):
+                                recommendations.extend(recs)
+                            elif isinstance(recs, str):
+                                recommendations.append(recs)
+                    
+                    if recommendations:
+                        print(f"从JSON中提取的建议: {recommendations}")
+                        return recommendations
+            except json.JSONDecodeError:
+                print("JSON解析失败，尝试其他方式提取建议")
+        
+        # 如果不是JSON或解析失败，尝试从文本中提取建议
+        recommendations = []
+        lines = content.split('\n') if isinstance(content, str) else []
+        in_recommendations = False
+        
+        for line in lines:
+            if not isinstance(line, str):
+                continue
+                
+            line = line.strip()
+            if not line:
+                continue
+                
+            if '建议' in line or '推荐' in line:
+                in_recommendations = True
+                continue
+                
+            if in_recommendations and (line.startswith('-') or line.startswith('•') or line.startswith('*')):
+                recommendation = line.lstrip('-•* ').strip()
+                if recommendation:
+                    recommendations.append(recommendation)
+        
+        # 如果没有找到建议，生成一些通用建议
+        if not recommendations:
+            recommendations = [
+                "建议适当休息，保持作息规律",
+                "注意营养均衡，定时就餐",
+                "保持适度运动，增强体质"
+            ]
+        
+        print(f"提取的建议: {recommendations}")
+        return recommendations
+        
+    except Exception as e:
+        print(f"提取建议时出错: {str(e)}\n{traceback.format_exc()}")
+        return ["系统暂时无法提供具体建议，请保持健康的生活方式"]
+
+# 生成模拟AI分析响应（当无法使用千帆API时）
+def generate_mock_analysis(health_data):
+    # 找出最低的3个指标
+    all_metrics = []
+    
+    for category, metrics in health_data.items():
+        for key, value in metrics.items():
+            all_metrics.append({
+                "category": category,
+                "key": key,
+                "value": value,
+                "label": get_metric_label(key)
+            })
+    
+    # 按值排序
+    all_metrics.sort(key=lambda x: x['value'])
+    lowest_metrics = all_metrics[:3]
+    
+    # 生成分析结果
+    result = "## 健康状况分析\n\n"
+    
+    # 总体评估
+    avg_value = sum(metric['value'] for metric in all_metrics) / len(all_metrics)
+    if avg_value > 70:
+        result += "您的整体健康状况良好。大多数指标处于理想范围内，继续保持良好的生活习惯。\n\n"
+    elif avg_value > 50:
+        result += "您的整体健康状况一般。部分指标需要关注，建议适当调整生活习惯。\n\n"
+    else:
+        result += "您的整体健康状况需要关注。多项指标处于较低水平，建议积极调整生活方式。\n\n"
+    
+    # 重点关注项
+    result += "### 需要关注的指标:\n\n"
+    
+    for metric in lowest_metrics:
+        result += f"- **{metric['label']}**: {metric['value']}%\n"
+    
+    result += "\n### 改善建议:\n\n"
+    
+    # 针对低指标的具体建议
+    for metric in lowest_metrics:
+        if metric['key'] == 'hunger':
+            result += "1. 饱腹度偏低，建议及时补充营养，保持规律三餐\n"
+        elif metric['key'] == 'thirst':
+            result += "1. 口渴度偏低，建议增加日常饮水量，保持充分水分摄入\n"
+        elif metric['key'] == 'social':
+            result += "1. 社交需求偏低，建议增加社交活动，保持与朋友家人的联系\n"
+        elif metric['key'] == 'fatigue':
+            result += "1. 疲惫度较高，建议保证充足睡眠，适当休息\n"
+        elif metric['key'] == 'hygiene':
+            result += "1. 卫生状况偏低，建议注意个人卫生，保持环境整洁\n"
+        elif metric['key'] == 'fitness':
+            result += "1. 瘦身指数偏低，建议加强有氧运动，控制饮食\n"
+        elif metric['key'] == 'sleepQuality':
+            result += "1. 睡眠质量偏低，建议调整作息时间，创造良好睡眠环境\n"
+        else:
+            result += f"1. {metric['label']}偏低，建议关注并采取相应措施改善\n"
+    
+    # 一般性建议
+    result += "\n### 一般健康建议:\n\n"
+    result += "1. 保持均衡饮食，多摄入蔬果，减少高糖高脂食物\n"
+    result += "2. 每天保持30分钟以上中等强度运动\n"
+    result += "3. 建立规律作息，保证7-8小时高质量睡眠\n"
+    result += "4. 保持积极心态，学会缓解压力\n"
+    result += "5. 定期体检，关注身体变化\n"
+    
+    return result
 
 # 启动服务器
 if __name__ == '__main__':

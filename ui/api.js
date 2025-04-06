@@ -3,6 +3,7 @@ const API_BASE_URL = 'http://localhost:5000/api';
 
 // API请求工具函数
 async function apiRequest(endpoint, options = {}) {
+    console.log(`开始API请求: ${endpoint}`, options);
     try {
         const response = await fetch(`${API_BASE_URL}${endpoint}`, {
             ...options,
@@ -12,16 +13,20 @@ async function apiRequest(endpoint, options = {}) {
             }
         });
 
+        console.log(`API响应状态: ${response.status} ${response.statusText}`);
+        
         if (!response.ok) {
             console.error('API响应错误:', {
                 status: response.status,
                 statusText: response.statusText,
-                endpoint
+                endpoint,
+                options
             });
             throw new Error(`API请求失败: ${response.status}`);
         }
 
         const result = await response.json();
+        console.log(`API响应数据:`, result);
         return result;
     } catch (error) {
         console.error('API请求错误:', error);
@@ -32,9 +37,11 @@ async function apiRequest(endpoint, options = {}) {
 // API服务对象
 export async function getHealthData(cacheParam = '') {
     try {
+        console.log('开始获取健康数据...');
         // 添加时间戳参数避免浏览器缓存
         const timestamp = `${cacheParam || ''}${cacheParam ? '&' : '?'}t=${Date.now()}`;
         const data = await apiRequest(`/health-data${timestamp}`);
+        console.log('获取到的健康数据:', data);
         return data;
     } catch (error) {
         console.error('获取健康数据失败:', error);
@@ -44,10 +51,12 @@ export async function getHealthData(cacheParam = '') {
 
 export async function syncHealthData(data) {
     try {
+        console.log('开始同步健康数据...', data);
         const result = await apiRequest('/health/sync', {
             method: 'POST',
             body: JSON.stringify(data)
         });
+        console.log('同步健康数据结果:', result);
         return result;
     } catch (error) {
         console.error('同步健康数据失败:', error);
@@ -160,14 +169,20 @@ export const getModelStatus = async function() {
 
 export const analyzeWithAI = async function(data) {
     try {
-        const response = await apiRequest('/analysis/ai', {
+        console.log('开始AI分析...', data);
+        const response = await apiRequest('/analyze', {
             method: 'POST',
             body: JSON.stringify(data)
         });
+        console.log('AI分析结果:', response);
         return response;
     } catch (error) {
         console.error('AI分析失败:', error);
-        return { status: 'error', analysis: [] };
+        return { 
+            status: 'error', 
+            analysis: [],
+            message: error.message || '分析失败，请稍后重试'
+        };
     }
 };
 

@@ -344,7 +344,27 @@ async function syncHealthData() {
 
 // 设置事件监听器
 function setupEventListeners() {
-    // 添加事件更新监听
+    // 底部按钮点击事件
+    document.querySelectorAll('.footer button').forEach(button => {
+        button.addEventListener('click', function() {
+            const buttonText = this.textContent.trim();
+            handleFooterButtonClick(buttonText);
+        });
+    });
+
+    // AI分析按钮点击事件
+    const aiAnalysisButton = document.querySelector('.ai-analysis .gradient-button');
+    if (aiAnalysisButton) {
+        aiAnalysisButton.addEventListener('click', analyzeWithAI);
+    }
+
+    // 阈值设置按钮点击事件
+    const thresholdButton = document.querySelector('.threshold-settings .gradient-button');
+    if (thresholdButton) {
+        thresholdButton.addEventListener('click', showThresholdSettings);
+    }
+
+    // 事件更新监听
     window.addEventListener('message', async (event) => {
         if (event.data.type === 'eventUpdate') {
             await handleEventUpdate(event.data.eventData);
@@ -405,33 +425,44 @@ export { handleEventUpdate };
 // 阈值检查
 async function checkThresholds() {
     try {
+        if (!healthData) {
+            console.warn('健康数据未加载，无法检查阈值');
+            return;
+        }
+        
         const currentThresholds = await apiService.getThresholds();
         thresholds = currentThresholds;
 
         // 检查每个指标是否低于阈值
-        Object.entries(healthData.physiological).forEach(([key, value]) => {
-            if (value < (thresholds[key] || 30)) {
-                showAnalysisResult({
-                    message: `警告：${getMetricLabel(key)}低于阈值！当前值：${Math.round(value)}%`
-                });
-            }
-        });
+        if (healthData.physiological) {
+            Object.entries(healthData.physiological).forEach(([key, value]) => {
+                if (value < (thresholds[key] || 30)) {
+                    showAnalysisResult({
+                        message: `警告：${getMetricLabel(key)}低于阈值！当前值：${Math.round(value)}%`
+                    });
+                }
+            });
+        }
 
-        Object.entries(healthData.mental).forEach(([key, value]) => {
-            if (value < (thresholds[key] || 30)) {
-                showAnalysisResult({
-                    message: `警告：${getMetricLabel(key)}低于阈值！当前值：${Math.round(value)}%`
-                });
-            }
-        });
+        if (healthData.mental) {
+            Object.entries(healthData.mental).forEach(([key, value]) => {
+                if (value < (thresholds[key] || 30)) {
+                    showAnalysisResult({
+                        message: `警告：${getMetricLabel(key)}低于阈值！当前值：${Math.round(value)}%`
+                    });
+                }
+            });
+        }
 
-        Object.entries(healthData.ability).forEach(([key, value]) => {
-            if (value < (thresholds[key] || 30)) {
-                showAnalysisResult({
-                    message: `警告：${getMetricLabel(key)}低于阈值！当前值：${Math.round(value)}%`
-                });
-            }
-        });
+        if (healthData.ability) {
+            Object.entries(healthData.ability).forEach(([key, value]) => {
+                if (value < (thresholds[key] || 30)) {
+                    showAnalysisResult({
+                        message: `警告：${getMetricLabel(key)}低于阈值！当前值：${Math.round(value)}%`
+                    });
+                }
+            });
+        }
     } catch (error) {
         console.error('检查阈值失败:', error);
     }
@@ -825,7 +856,9 @@ const speechManager = new SpeechRecognitionManager();
 // 更新初始化函数
 async function initialize() {
     await loadHealthData();
-    await checkThresholds();
+    if (healthData) {
+        await checkThresholds();
+    }
     await speechManager.initialize();
     updateCurrentTime();
     initializeEventListeners();
@@ -837,13 +870,171 @@ async function initialize() {
     syncInterval = setInterval(loadHealthData, settings.syncInterval * 60 * 1000);
 }
 
-// 添加语音按钮事件
+// AI状态分析
+async function analyzeWithAI() {
+    try {
+        if (!healthData) {
+            await loadHealthData();
+            if (!healthData) {
+                showAnalysisResult({ message: '无法加载健康数据，AI分析失败' });
+                return;
+            }
+        }
+
+        // 显示加载中状态
+        const aiLoadingIndicator = document.getElementById('aiLoadingIndicator');
+        const aiResult = document.getElementById('aiResult');
+        
+        if (aiLoadingIndicator) {
+            aiLoadingIndicator.style.display = 'flex';
+        }
+        
+        if (aiResult) {
+            aiResult.innerHTML = '';
+        }
+
+        // 构建发送给AI的数据
+        const analysisData = {
+            healthData: healthData,
+            recentEvents: [] // 这里可以添加最近的事件数据
+        };
+
+        console.log('发送AI分析请求：', analysisData);
+
+        // 调用后端AI分析接口
+        const result = await fetch('/api/analyze', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(analysisData)
+        });
+
+        if (!result.ok) {
+            throw new Error(`API请求失败: ${result.status}`);
+        }
+
+        const analysis = await result.json();
+        console.log('接收到AI分析结果：', analysis);
+        
+        // 隐藏加载指示器
+        if (aiLoadingIndicator) {
+            aiLoadingIndicator.style.display = 'none';
+        }
+        
+        // 更新AI分析结果框
+        if (aiResult) {
+            // 解析显示内容
+            let contentHTML = '';
+            
+            // 如果有直接内容，显示它
+            if (analysis.content) {
+                try {
+                    // 尝试解析JSON
+                    const jsonContent = JSON.parse(analysis.content);
+                    contentHTML += `<div class="ai-analysis-summary">
+                        <h3>总体评估</h3>
+                        <p>${jsonContent['总体评估'] || '未提供'}</p>
+                    </div>`;
+                    
+                    if (jsonContent['需要关注的指标'] && jsonContent['需要关注的指标'].length > 0) {
+                        contentHTML += `<div class="ai-focus-items">
+                            <h3>需要关注的指标</h3>
+                            <ul>`;
+                        
+                        jsonContent['需要关注的指标'].forEach(item => {
+                            contentHTML += `<li>
+                                <strong>${item['指标名称'] || '未命名指标'}</strong>: 
+                                ${item['当前值'] || '0'}
+                                ${item['建议'] ? `<p>建议: ${item['建议']}</p>` : ''}
+                            </li>`;
+                        });
+                        
+                        contentHTML += `</ul></div>`;
+                    }
+                    
+                    if (jsonContent['通用建议'] && jsonContent['通用建议'].length > 0) {
+                        contentHTML += `<div class="ai-recommendations">
+                            <h3>通用建议</h3>
+                            <ul>`;
+                        
+                        jsonContent['通用建议'].forEach(tip => {
+                            contentHTML += `<li>${tip}</li>`;
+                        });
+                        
+                        contentHTML += `</ul></div>`;
+                    }
+                } catch (e) {
+                    // 如果解析失败，直接显示内容
+                    contentHTML = `<div class="ai-message">${analysis.content}</div>`;
+                }
+            }
+            
+            // 如果有推荐建议但没有显示在内容中，单独显示
+            if (analysis.recommendations && analysis.recommendations.length > 0 && !contentHTML.includes('建议')) {
+                contentHTML += `<div class="ai-recommendations">
+                    <h3>AI推荐建议</h3>
+                    <ul>`;
+                    
+                analysis.recommendations.forEach(recommendation => {
+                    contentHTML += `<li>${recommendation}</li>`;
+                });
+                
+                contentHTML += `</ul></div>`;
+            }
+            
+            // 添加时间戳
+            contentHTML += `<div class="analysis-timestamp">分析时间: ${new Date().toLocaleString('zh-CN')}</div>`;
+            
+            aiResult.innerHTML = contentHTML;
+        }
+
+        // 在系统日志中也显示分析完成的提示
+        showAnalysisResult({ message: 'AI分析已完成，请查看分析结果' });
+
+    } catch (error) {
+        console.error('AI分析失败:', error);
+        showAnalysisResult({ message: 'AI分析失败: ' + error.message });
+        
+        // 如果加载指示器存在，隐藏它
+        const aiLoadingIndicator = document.getElementById('aiLoadingIndicator');
+        if (aiLoadingIndicator) {
+            aiLoadingIndicator.style.display = 'none';
+        }
+        
+        // 更新AI结果区域显示错误
+        const aiResult = document.getElementById('aiResult');
+        if (aiResult) {
+            aiResult.innerHTML = `<div class="error-message">分析失败: ${error.message}</div>`;
+        }
+    }
+}
+
+// 设置事件监听器
 function initializeEventListeners() {
-    // ... 保持现有事件监听器不变 ...
+    // 为AI分析按钮添加事件监听
+    const aiAnalysisButton = document.querySelector('.ai-analysis .gradient-button');
+    if (aiAnalysisButton) {
+        aiAnalysisButton.addEventListener('click', analyzeWithAI);
+    }
+
+    // 为阈值设置按钮添加事件监听
+    const thresholdSettingsButton = document.querySelector('.threshold-settings .gradient-button');
+    if (thresholdSettingsButton) {
+        thresholdSettingsButton.addEventListener('click', showThresholdSettings);
+    }
+
+    // 为底部按钮添加事件监听
+    const footerButtons = document.querySelectorAll('.footer button');
+    footerButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            handleFooterButtonClick(button.textContent);
+        });
+    });
 
     // 添加语音按钮
     const voiceButton = document.createElement('button');
-    voiceButton.className = 'gradient-button';
+    voiceButton.className = 'gradient-button voice-button';
     voiceButton.textContent = '语音输入';
     voiceButton.style.position = 'fixed';
     voiceButton.style.bottom = '20px';
